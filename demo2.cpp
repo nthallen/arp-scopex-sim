@@ -114,10 +114,6 @@ static void printd3(FILE *ofp, dVector3 d3) {
   fprintf(ofp, ",%7.3lf,%7.3lf,%7.3lf", (double)d3[0], (double)d3[1], (double)d3[2]);
 }
 
-static void printdR3(FILE *ofp, const dReal *d) {
-  fprintf(ofp, ",%7.3lf,%7.3lf,%7.3lf", (double)d[0], (double)d[1], (double)d[2]);
-}
-
 // Simulation loop
 static void simLoop (int pause)
 {
@@ -144,6 +140,12 @@ static void simLoop (int pause)
     // force3[0],force3[1],force3[2],
     // torque3[0],torque3[1],torque3[2]);
   dWorldStep(world,stepSize);
+  fprintf(ofp, "%7d", tcount++);
+  printd3(ofp, JFB_tetherPayload.f1);
+  printd3(ofp, JFB_tetherPayload.t1);
+  printd3(ofp, JFB_tetherPayload.f2);
+  printd3(ofp, JFB_tetherPayload.t2);
+  fprintf(ofp, "\n");
 
   // draw a sphere
   dsSetColor(0.9,0.9,0.9);      // set red color
@@ -163,12 +165,6 @@ static void simLoop (int pause)
   pos3 = dBodyGetPosition(box.body);
   R3   = dBodyGetRotation(box.body);
   dsDrawBox(pos3,R3,payloadSize);
-  
-  fprintf(ofp, "%7d", tcount++);
-  printdR3(ofp, pos1);
-  printdR3(ofp, pos2);
-  printdR3(ofp, pos3);
-  fprintf(ofp, "\n");
 }
 
 int main (int argc, char **argv) {
