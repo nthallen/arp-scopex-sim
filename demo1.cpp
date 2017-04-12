@@ -1,6 +1,7 @@
 /* ODE tutorial  by Kosei Demura */
 /* Lesson 4 3D Graphics          */
 #include <stdio.h>
+#include <math.h>
 #include "ode/ode.h"
 #include "ode/mass.h"
 #include "drawstuff/drawstuff.h"
@@ -15,15 +16,24 @@
 #define dsDrawLine     dsDrawLineD
 #endif
 
+dReal Pressure = 50; // hPa
+dReal Temperature = 212; // K
+dReal R = 8.314; // Pa m^3 mol-1 K-1
+dReal air_molar_mass = 28.97; // g/mol
+dReal rho_air = air_molar_mass*Pressure*0.1/(R*Temperature); // Kg/m^3
+dReal balloonCd = 0.5;
 dReal balloonMass = 477.0; // Kg
 dReal balloonRadius = 14.58495; // m
 dReal balloonAltitude = 20000.0; // m
+dReal balloonArea = 3.141592653589793 * balloonRadius * balloonRadius; // m^2
 dReal payloadMass = 444.0; // Kg
 dReal payloadSize[3] = {1,1,1}; // m
+dReal payloadArea = payloadSize[0]*payloadSize[3]; // X x Z, assumes motion in Y direction only
+dReal payloadCd = 1.05; // assumes motion in Y direction only
 dReal tetherMass = 10; // Kg
 dReal tetherRadius = 0.02;
 dReal tetherLength = 3*balloonRadius;  // length
-dReal thrust = 0.;
+dReal thrust = 4.;
 dReal thrustIncrement = 1.0;
 dReal impulse = 20.;
 dReal impulseIncrement = 20.0;
@@ -118,15 +128,43 @@ static void printdR3(FILE *ofp, const dReal *d) {
   fprintf(ofp, ",%7.3lf,%7.3lf,%7.3lf", (double)d[0], (double)d[1], (double)d[2]);
 }
 
+static void print_rot(const char *label, const dReal *rot) {
+  int row, col;
+  fprintf(ofp, "%s: [", label);
+  for (row = 0; row < 3; ++row) {
+    fprintf(ofp, "\n  ");
+    for (col = 0; col < 4; ++col) {
+      fprintf(ofp, " %8.5lf", (double)rot[4*row+col]);
+    }
+  }
+  fprintf(ofp, "]\n");
+}
+
+static void print_vel(const char *label, const dReal *v) {
+  fprintf(ofp, "%s = [%8.5lf, %8.5lf, %8.5lf]\n", label, (double)v[0], (double)v[1], (double)v[2]);
+}
+
+static void dBodyAddDrag(dBodyID ID, dReal Cd, dReal Area) {
+  const dReal *V = dBodyGetLinearVel(ID);
+  double Vs2 = V[0]*V[0] + V[1]*V[1] + V[2]*V[2];
+  if (Vs2 > 1e-6) {
+    double Vs = sqrt(Vs2);
+    double Fds = 0.5*rho_air*Vs2*Cd*Area;
+    dBodyAddForce(ID, -V[0]*Fds/Vs, -V[1]*Fds/Vs, -V[0]*Fds/Vs);
+  }
+}
+
 // Simulation loop
 static void simLoop (int pause)
 {
   const dReal *pos1,*R1,*pos2,*R2,*pos3,*R3;
   static int tcount = 0;
 
-  dBodyAddForce(sphere.body, 0, 0, (balloonMass-(balloonMass+tetherMass+payloadMass))*GRAVITY);
-  dBodyAddForce(cylinder.body, 0, 0, tetherMass*GRAVITY);
-  dBodyAddForce(box.body, 0, thrust, payloadMass*GRAVITY);
+  dBodyAddForce(sphere.body, 0, 0, -(balloonMass+tetherMass+payloadMass)*GRAVITY);
+  dBodyAddForce(box.body, 0, thrust, 0);
+  dBodyAddDrag(sphere.body, balloonCd, balloonArea);
+  dBodyAddDrag(box.body, payloadCd, payloadArea);
+  const dReal *v = dBodyGetLinearVel(box.body);
   if (push > 0) {
     dBodyAddForce(box.body, 0, impulse/stepSize, 0);
     --push;
@@ -136,13 +174,6 @@ static void simLoop (int pause)
     ++push;
     printf("Impulse thrust: %.1lf\n", -impulse/stepSize);
   }
-  // const dReal *force3, *torque3;
-  // force3 = dBodyGetForce(box.body);
-  // torque3 = dBodyGetTorque(box.body);
-  // fprintf(ofp, "%7d,%7.3lf,%7.3lf,%7.3lf,%7.3lf,%7.3lf,%7.3lf\n",
-    // tcount++,
-    // force3[0],force3[1],force3[2],
-    // torque3[0],torque3[1],torque3[2]);
   dWorldStep(world,stepSize);
 
   // draw a sphere
@@ -169,6 +200,10 @@ static void simLoop (int pause)
   printdR3(ofp, pos2);
   printdR3(ofp, pos3);
   fprintf(ofp, "\n");
+  // const dReal *rot = dBodyGetRotation(cylinder.body);
+  // print_rot("tether_rot", rot);
+  // const dReal *v = dBodyGetLinearVel(box.body);
+  // print_vel("payload_vel", v);
 }
 
 int main (int argc, char **argv) {
@@ -183,7 +218,7 @@ int main (int argc, char **argv) {
 
   dInitODE();              // Initialize ODE
   world = dWorldCreate();  // Create a world
-  // dWorldSetGravity(world,0,0,GRAVITY);
+  dWorldSetGravity(world,0,0,GRAVITY);
 
   dMass m;                 // mass parameter
   dMassSetZero (&m);  //set mass parameter to zero
