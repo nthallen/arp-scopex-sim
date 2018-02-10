@@ -34,7 +34,10 @@ dReal tetherMass = 10; // Kg
 dReal tetherRadius = 0.02;
 dReal tetherLength = 3*balloonRadius;  // length
 dReal thrust = 4.;
-dReal thrustIncrement = 1.0;
+dReal thrustIncrement = 0.25;
+dReal direction = 90.; // +Y [-180, 180]
+dReal directionIncrement = 5; // degrees
+dReal angleGain = -0.4/90;
 dReal impulse = 20.;
 dReal impulseIncrement = 20.0;
 int push = 0;
@@ -78,6 +81,8 @@ static void start() {
   puts("Controls:");
   puts("   f - increase thrust");
   puts("   F - decrease thrust");
+  puts("   d - increase direction angle");
+  puts("   D - decrease direction angle");
   puts("   i - increase impulse magnitude");
   puts("   I - decrease impulse magnitude");
   puts("   p - push forward with current impulse");
@@ -98,6 +103,14 @@ void command(int c) {
     case 'F':
       thrust -= thrustIncrement;
       break;
+    case 'd':
+      direction += directionIncrement;
+      if (direction > 180) direction -= 360;
+      break;
+    case 'D':
+      direction -= directionIncrement;
+      if (direction < -180) direction += 360;
+      break;
     case 'i':
       impulse += impulseIncrement;
       break;
@@ -117,7 +130,8 @@ void command(int c) {
       break;
     default: return;
   }
-  printf("Thrust = %.1lf Impulse = %.1lf\n", (double)thrust, (double)impulse);
+  printf("Thrust = %.1lf Direction = %.1lf Impulse = %.1lf\n",
+    (double)thrust, (double)direction, (double)impulse);
 }
 
 static void printd3(FILE *ofp, dVector3 d3) {
@@ -160,10 +174,30 @@ static void simLoop (int pause)
   const dReal *pos1,*R1,*pos2,*R2,*pos3,*R3;
   static int tcount = 0;
 
+  // buoyancy
   dBodyAddForce(sphere.body, 0, 0, -(balloonMass+tetherMass+payloadMass)*GRAVITY);
-  dBodyAddForce(box.body, 0, thrust, 0);
+  // Drag
   dBodyAddDrag(sphere.body, balloonCd, balloonArea);
   dBodyAddDrag(box.body, payloadCd, payloadArea);
+  
+  // Thrust
+  // dBodyAddForce(box.body, 0, thrust, 0);
+  const dReal *rot = dBodyGetRotation(box.body);
+  dReal boxAngle = atan2(rot[1*4+1],rot[1*4+0])*180/3.141592653589793;
+  dReal angleError = boxAngle - direction;
+  if (angleError > 180) angleError -= 360;
+  else if (angleError < -180) angleError += 360;
+  dReal dThrust = angleError * angleGain;
+  if (dThrust > 1) dThrust = 1;
+  else if (dThrust < -1) dThrust = -1;
+  dReal thrust_left = thrust * (1+dThrust) / 2;
+  dReal thrust_right = thrust * (1-dThrust) / 2;
+  
+  dBodyAddRelForceAtRelPos(box.body, 0, thrust_left, 0,
+    -payloadSize[0]/2, -payloadSize[1]/2, payloadSize[2]/2);
+  dBodyAddRelForceAtRelPos(box.body, 0, thrust_right, 0,
+    +payloadSize[0]/2, -payloadSize[1]/2, payloadSize[2]/2);
+
   const dReal *v = dBodyGetLinearVel(box.body);
   if (push > 0) {
     dBodyAddForce(box.body, 0, impulse/stepSize, 0);
@@ -199,8 +233,10 @@ static void simLoop (int pause)
   printdR3(ofp, pos1);
   printdR3(ofp, pos2);
   printdR3(ofp, pos3);
+  fprintf(ofp, ",%7.4lf,%7.4lf,%7.4lf,%7.4lf",
+    (double)boxAngle, (double)direction,
+    (double)thrust_left, (double) thrust_right);
   fprintf(ofp, "\n");
-  // const dReal *rot = dBodyGetRotation(cylinder.body);
   // print_rot("tether_rot", rot);
   // const dReal *v = dBodyGetLinearVel(box.body);
   // print_vel("payload_vel", v);

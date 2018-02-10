@@ -1,0 +1,13 @@
+# Comment
+0 Set Thrust 3
+0 Set PGain  0.001
+0 Set IGain  0.000000
+0 Set DGain  0.8
+600 Adjust Direction -90
+600 Adjust Direction -90
+600 Adjust Direction -90
+600 Adjust Direction -90
+600 Adjust Direction -90
+600 Adjust Direction -90
+600 Adjust Direction -90
+600 Quit
