@@ -10,6 +10,8 @@ class SCoPEx {
     void Loop();
     void Step();
     void Log();
+    void LogBody(dBodyID b);
+    void LogJoint(dJointFeedback *j);
     void printForces(const char *when);
     void printdRN(const dReal *d, int N);
     int tcount;
@@ -22,7 +24,7 @@ class SCoPEx {
     // dBodyID balloonID;
     // dReal balloonCd;
     // dReal balloonMass; // Kg
-    // dReal balloonRadius; // m
+    dReal balloonRadius; // m
     // dReal balloonAltitude; // m
     // dReal balloonArea; // m^2
     dReal boxAngle;
@@ -34,11 +36,20 @@ class SCoPEx {
     FILE *ofp;
     bool run;
 
+    dBodyID tetherID;
+    dReal tetherMass; // Kg
+    dReal tetherRadius;
+    dReal tetherLength;  // length
+
     dBodyID payloadID;
     dReal payloadMass; // Kg
     dReal payloadSize[3]; // m
     dReal payloadArea; // X x Z, assumes motion in Y direction only
     dReal payloadCd; // assumes motion in Y direction only
+    
+    dJointID tetherPayload;
+    dJointFeedback tetherPayloadFB;
+
     dReal stepSize;
     static constexpr dReal GRAVITY = -9.81;
 };
@@ -53,18 +64,23 @@ SCoPEx::SCoPEx() {
   // rho_air = air_molar_mass*Pressure*0.1/(R*Temperature); // Kg/m^3
   // balloonCd = 0.5;
   // balloonMass = 477.0; // Kg
-  // balloonRadius = 14.58495; // m
+  balloonRadius = 14.58495; // m
   // balloonAltitude = 20000.0; // m
   // balloonArea = 3.141592653589793 * balloonRadius * balloonRadius; // m^2
+  payloadID = 0;
   payloadMass = 444.0; // Kg
   payloadSize[0] = 1; // m
   payloadSize[1] = 1;
   payloadSize[2] = 1;
   payloadArea = payloadSize[0]*payloadSize[3]; // X x Z, assumes motion in Y direction only
   payloadCd = 1.05; // assumes motion in Y direction only
-  // tetherMass = 10; // Kg
-  // tetherRadius = 0.02;
-  // tetherLength = 3*balloonRadius;  // length
+  
+  tetherID = 0;
+  tetherMass = 10; // Kg
+  tetherRadius = 0.02;
+  tetherLength = 3*balloonRadius;  // length
+  
+  memset(&tetherPayloadFB, 0, sizeof(tetherPayloadFB));
   // thrust = 4.;
   // thrustIncrement = 0.25;
   // direction = 90.; // +Y [-180, 180]
@@ -100,11 +116,18 @@ void SCoPEx::Init() {
   dBodySetMass (payloadID,&m);
   dReal payloadAltitude = 1000;
   dBodySetPosition (payloadID,0,0,payloadAltitude);
+
+  tetherID = dBodyCreate (world);
+  dMassSetCylinderTotal(&m,tetherMass,3,tetherRadius,tetherLength);
+  dBodySetMass (tetherID,&m);
+  dBodySetPosition (tetherID,0,0,payloadAltitude+tetherLength/2);
   
-  // tetherPayload = dJointCreateBall(world,0);
-  // dJointAttach(tetherPayload, tetherID, payloadID);
-  // dJointSetBallAnchor(tetherPayload,0,0,balloonAltitude-balloonRadius-tetherLength);
-  // dJointEnable(tetherPayload);
+  tetherPayload = dJointCreateBall(world,0);
+  dJointAttach(tetherPayload, tetherID, payloadID);
+  dJointSetBallAnchor(tetherPayload,0,0,payloadAltitude+payloadSize[2]/2);
+  dJointEnable(tetherPayload);
+  
+  dJointSetFeedback(tetherPayload, &tetherPayloadFB);
 }
 
 void SCoPEx::printdRN(const dReal *d, int N) {
@@ -128,11 +151,12 @@ void SCoPEx::Step() {
 
   // buoyancy
   // fprintf(ofp, "Adding anti-gravity %.4lf\n", -payloadMass*GRAVITY);
-  dBodyAddForce(payloadID, 0, 0, -(payloadMass)*GRAVITY);
+  dBodyAddForceAtRelPos(tetherID, 0, 0, -(payloadMass+tetherMass)*GRAVITY,
+        0, 0, tetherLength/2);
   // thrust
   // fprintf(ofp, "Adding thrust\n");
   dBodyAddForce(payloadID, 0, 1, 0); // at CG
-  dBodyAddForceAtRelPos(payloadID, 0, -.1, 0, 0, 0, payloadSize[2]/2);
+  // dBodyAddForceAtRelPos(payloadID, 0, -.1, 0, 0, 0, payloadSize[2]/2);
 
   ++tcount;
   if (tcount*stepSize > 30) {
@@ -140,29 +164,48 @@ void SCoPEx::Step() {
   }
 }
 
+void SCoPEx::LogBody(dBodyID b) {
+  const dReal *vec = dBodyGetPosition(b);
+  printdRN(vec, 3);
+ vec = dBodyGetLinearVel(b);
+  printdRN(vec, 3);
+  vec = dBodyGetForce(b);
+  printdRN(vec, 3);
+  vec = dBodyGetTorque(b);
+  printdRN(vec, 3);
+  vec = dBodyGetRotation(b);
+  printdRN(vec, 12);
+}
+
+void SCoPEx::LogJoint(dJointFeedback *j) {
+  printdRN(j->f1,3);
+  printdRN(j->t1,3);
+  printdRN(j->f2,3);
+  printdRN(j->t2,3);
+}
+
 /* Current log format
-  D = load('debug.log');
+function [B, Di] = GetBodyData(D, col)
+  Di = col;
+  B.T = D(:,1);
+  B.Pos = D(:,Di:Di+2); Di = Di + 3;
+  B.Vel = D(:,Di:Di+2); Di = Di + 3;
+  B.Force = D(:,Di:Di+2); Di = Di + 3;
+  B.Torque = D(:,Di:Di+2); Di = Di + 3;
+  rotM = D(:,Di:Di+11); Di = Di + 12;
+
+  D = load('Sdebug.log');
   T = D(:,1);
   Di = 2;
-  gondolaPos = D(:,Di:Di+2); Di = Di + 3;
-  gondolaVel = D(:,Di:Di+2); Di = Di + 3;
-  gondolaForce = D(:,Di:Di+2); Di = Di + 3;
-  gondolaTorque = D(:,Di:Di+2); Di = Di + 3;
-  rotM = D(:,Di:Di+11); Di = Di + 12;
+  [gondola,Di] = GetBodyData(D,Di);
+  [tether,Di] = GetBodyData(D,Di);
+  [TGjoint,Di] = GetJointData(D,Di);
  */
 void SCoPEx::Log() {
-  const dReal *pos3 = dBodyGetPosition(payloadID);
-  
   fprintf(ofp, "%7.2lf", tcount*stepSize);
-  printdRN(pos3, 3);
-  const dReal *vel = dBodyGetLinearVel(payloadID);
-  printdRN(vel, 3);
-  vel = dBodyGetForce(payloadID);
-  printdRN(vel, 3);
-  vel = dBodyGetTorque(payloadID);
-  printdRN(vel, 3);
-  const dReal *rotM = dBodyGetRotation(payloadID);
-  printdRN(rotM, 12);
+  LogBody(payloadID);
+  LogBody(tetherID);
+  LogJoint(&tetherPayloadFB);
   fprintf(ofp, "\n");
 }
 
