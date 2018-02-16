@@ -1,7 +1,7 @@
 CPPFLAGS=-I /home/nort/Exp/SCoPEx/ode/pkg/usr/local/include \
   -I /home/nort/Exp/SCoPEx/ode/include
-LDFLAGS=-L/home/nort/Exp/SCoPEx/ode/pkg/usr/local/lib -lode \
-	-L/home/nort/Exp/SCoPEx/ode/drawstuff/src -ldrawstuff \
+LDFLAGS=-L/home/nort/Exp/SCoPEx/PORT/ode/pkg/usr/local/lib -lode \
+	-L/home/nort/Exp/SCoPEx/PORT/ode/drawstuff/src -ldrawstuff \
 	-lGLU -lGL -L/usr/local/lib -lnort
 CXXLD=$(CXX)
 LIBTOOL=libtool
@@ -27,3 +27,7 @@ scopex : scopex.o commandfile.o
 	$(CXXLINK) scopex.o commandfile.o
 scopex.o : scopex.cpp
 commandfile.o : commandfile.cpp
+
+Sdebug : Sdebug.o
+	$(CXXLINK) Sdebug.o
+Sdebug.o : Sdebug.cpp
