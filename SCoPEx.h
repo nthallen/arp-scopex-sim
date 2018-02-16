@@ -20,7 +20,10 @@ class SCoPEx {
     void print_vel(const char *label, const dReal *v);
     void printd3(FILE *ofp, dVector3 d3);
     void printdR3(FILE *ofp, const dReal *d);
+    void printdRN(FILE *ofp, const dReal *d, int N);
+    void printTorque(const char *when, const dReal *torque);
     void dBodyAddDrag(dBodyID ID, dReal Cd, dReal Area);
+    dReal angleDiff(dReal a1, dReal a2);
     int tcount;
     double nextCmdTime;
     dReal Pressure; // hPa
@@ -35,9 +38,10 @@ class SCoPEx {
     dReal balloonAltitude; // m
     dReal balloonArea; // m^2
     dReal boxAngle;
+    dReal boxVelocityAngle;
+    dReal boxSpeed;
     dReal thrust_left;
     dReal thrust_right;
-    dReal prevAngleError;
     
     bool opt_graphics;
     const char *opt_commandfile;
@@ -53,6 +57,15 @@ class SCoPEx {
     dReal payloadSize[3]; // m
     dReal payloadArea; // X x Z, assumes motion in Y direction only
     dReal payloadCd; // assumes motion in Y direction only
+    
+    // These are variable for the direction control
+    // direction, which is commanded, specifies the desired velocity direction
+    // The setpoint for gondola angle control
+    dReal gondolaAngleSetpoint;
+    dReal velocityAngleIntegral;
+    dReal velocityAngleIntegralLimit;
+    dReal prevAngleError;
+    dVector3 prevPayloadPos;
 
     dBodyID tetherID;
     dReal tetherMass; // Kg
@@ -70,7 +83,7 @@ class SCoPEx {
     dReal IGain;
     dReal DGain;
     dReal stepSize;
-    static const dReal GRAVITY = -9.81;
+    static constexpr dReal GRAVITY = -9.81;
 };
 
 #endif

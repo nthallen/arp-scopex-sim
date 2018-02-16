@@ -48,6 +48,8 @@ SCoPEx::SCoPEx() {
   opt_logfile = 0;
   cmdfile = 0;
   nextCmdTime = 0;
+  velocityAngleIntegral = 0;
+  velocityAngleIntegralLimit = 45; //*< degrees
 }
 
 SCoPEx::~SCoPEx() {}
@@ -68,9 +70,9 @@ void dMassSetSphericalShell (dMass *m, dReal total_mass, dReal radius) {
 
 void SCoPEx::graphicsStart() {
   static float xyz[3] = {
-      1.2*(2*Model.balloonRadius+Model.tetherLength),
+      (float)1.2*(2*Model.balloonRadius+Model.tetherLength),
       3,
-      Model.balloonAltitude-Model.balloonRadius-Model.tetherLength}; // view point [m]
+      (float)Model.balloonAltitude-Model.balloonRadius-Model.tetherLength}; // view point [m]
   static float hpr[3] = {-180, 20.5, 0}; // view direction[°]
   dsSetViewpoint (xyz,hpr);           // set a view point and direction
   puts("Controls:");
@@ -117,6 +119,13 @@ void SCoPEx::printdR3(FILE *ofp, const dReal *d) {
   fprintf(ofp, ",%7.3lf,%7.3lf,%7.3lf", (double)d[0], (double)d[1], (double)d[2]);
 }
 
+void SCoPEx::printdRN(FILE *ofp, const dReal *d, int N) {
+  int i;
+  for (i = 0; i < N; ++i) {
+    fprintf(ofp, ",%7.3lf", (double)d[i]);
+  }
+}
+
 void SCoPEx::print_rot(const char *label, const dReal *rot) {
   int row, col;
   fprintf(ofp, "%s: [", label);
@@ -143,7 +152,22 @@ void SCoPEx::dBodyAddDrag(dBodyID ID, dReal Cd, dReal Area) {
   }
 }
 
+dReal SCoPEx::angleDiff(dReal a1, dReal a2) {
+  dReal diff = fmod(a1-a2+180,360);
+  diff += (diff < 0) ? 180 : -180;
+  return diff;
+}
+
+void SCoPEx::printTorque(const char *when, const dReal *torque) {
+  printf("%s", when);
+  printdR3(stdout, torque);
+  printf("\n");
+}
+
 void SCoPEx::Step() {
+  if (tcount > 0)
+    dWorldStep(world,stepSize);
+
   if (opt_commandfile) {
     double now = tcount * stepSize;
     while (nextCmdTime <= now) {
@@ -155,28 +179,55 @@ void SCoPEx::Step() {
       nextCmdTime = now+dT;
     }
   }
-  if (direction > 180) {
-    double nrevs = ceil(direction/360);
-    direction = direction - 360*nrevs;
-  } else if (direction < -180) {
-    double nrevs = ceil(-direction/360);
-    direction = direction + 360*nrevs;
-  }
+
+  const dReal *gondolaTorque = dBodyGetTorque(payloadID);
+  printTorque("After step", gondolaTorque);
+  
+  direction = angleDiff(direction,0); // Normalize
   
   // buoyancy
   dBodyAddForce(balloonID, 0, 0, -(balloonMass+tetherMass+payloadMass)*GRAVITY);
   // Drag
   dBodyAddDrag(balloonID, balloonCd, balloonArea);
   dBodyAddDrag(payloadID, payloadCd, payloadArea);
+  printTorque("After drag", gondolaTorque);
+  
+  const dReal *newPayloadPos = dBodyGetPosition(payloadID);
+  dVector3 boxVelocity;
+  boxSpeed = 0;
+  for (int i = 0; i < 3; ++i) {
+    boxVelocity[i] = (newPayloadPos[i]-prevPayloadPos[i])/stepSize;
+    boxSpeed += boxVelocity[i]*boxVelocity[i];
+    prevPayloadPos[i] = newPayloadPos[i];
+  }
+  boxVelocityAngle = atan2(boxVelocity[1],boxVelocity[0]) *
+    180/3.141592653589793;
+  boxSpeed = sqrt(boxSpeed);
   
   // Thrust
   // dBodyAddForce(payloadID, 0, thrust, 0);
   const dReal *rot = dBodyGetRotation(payloadID);
   boxAngle = atan2(rot[1*4+1],rot[0*4+1])*180/3.141592653589793;
-  dReal angleError = boxAngle - direction;
-  if (angleError > 180) angleError -= 360;
-  else if (angleError < -180) angleError += 360;
+  
+  // The outer control loop. This is configured such that
+  // PGain and DGain define the inner loop, which controls the gondola
+  // angle (and hence the thrust angle). IGain controls the outer
+  // loop, which feeds back on velocity angle. All three gains
+  // should be positive.
+  dReal velocityAngleError = angleDiff(boxVelocityAngle, direction);
+  if (IGain != 0) {
+    velocityAngleIntegral += velocityAngleError;
+    if (velocityAngleIntegral * IGain > velocityAngleIntegralLimit) {
+      velocityAngleIntegral = velocityAngleIntegralLimit/IGain;
+    } else if (velocityAngleIntegral * IGain < -velocityAngleIntegralLimit) {
+      velocityAngleIntegral = -velocityAngleIntegralLimit/IGain;
+    }
+  } else velocityAngleIntegral = 0;
+  
+  gondolaAngleSetpoint = direction - velocityAngleIntegral * IGain;
+  dReal angleError = angleDiff(boxVelocityAngle, gondolaAngleSetpoint);
   dReal errorChange = angleError - prevAngleError;
+  prevAngleError = angleError;
   
   dReal dThrust = angleError * PGain + errorChange * DGain;
   
@@ -187,18 +238,35 @@ void SCoPEx::Step() {
   
   dBodyAddRelForceAtRelPos(payloadID, 0, thrust_left, 0,
     -payloadSize[0]/2, -payloadSize[1]/2, payloadSize[2]/2);
+  printTorque("After left thrust", gondolaTorque);
   dBodyAddRelForceAtRelPos(payloadID, 0, thrust_right, 0,
     +payloadSize[0]/2, -payloadSize[1]/2, payloadSize[2]/2);
+  printTorque("After right thrust", gondolaTorque);
 
-  const dReal *v = dBodyGetLinearVel(payloadID);
-  dWorldStep(world,stepSize);
-  prevAngleError = angleError;
   ++tcount;
   if (tcount*stepSize > 30 && !opt_commandfile && !opt_graphics) {
     run = false;
   }
 }
 
+/* Current log format
+  D = load('scopex.log');
+  stepSize = 0.05;
+  T = D(:,1)*stepSize;
+  Di = 2;
+  balloonPos = D(:,Di:Di+2); Di = Di + 3;
+  tetherPos = D(:,Di:Di+2); Di = Di + 3;
+  gondolaPos = D(:,Di:Di+2); Di = Di + 3;
+  gondolaAngle = D(:,Di); Di = Di + 1;
+  gondolaVelocityAngleSetpoint = D(:,Di); Di = Di + 1;
+  thrust = D(:,Di:Di+2); Di = Di + 3;
+  gondolaVelocityAngle = D(:,Di); Di = Di + 1;
+  gondolaSpeed = D(:,Di); Di = Di + 1;
+  rotM = D(:,Di:Di+11); Di = Di + 12;
+  gondolaVel = D(:,Di:Di+2); Di = Di + 3;
+  gondolaForce = D(:,Di:Di+2); Di = Di + 3;
+  gondolaTorque = D(:,Di:Di+2); Di = Di + 3;
+ */
 void SCoPEx::Log() {
   const dReal *pos1,*pos2,*pos3;
   if (opt_logfile) {
@@ -210,13 +278,19 @@ void SCoPEx::Log() {
     printdR3(ofp, pos1);
     printdR3(ofp, pos2);
     printdR3(ofp, pos3);
-    fprintf(ofp, ",%7.4lf,%7.4lf,%7.4lf,%7.4lf",
+    fprintf(ofp, ",%7.4lf,%7.4lf,%7.4lf,%7.4lf,%7.4lf,%7.4lf",
       (double)boxAngle, (double)direction,
-      (double)thrust_left, (double) thrust_right);
+      (double)thrust_left, (double) thrust_right,
+      (double)boxVelocityAngle, (double)boxSpeed);
+    const dReal *rotM = dBodyGetRotation(payloadID);
+    printdRN(ofp, rotM, 12);
+    const dReal *vel = dBodyGetLinearVel(payloadID);
+    printdR3(ofp, vel);
+    vel = dBodyGetForce(payloadID);
+    printdR3(ofp, vel);
+    vel = dBodyGetTorque(payloadID);
+    printdR3(ofp, vel);
     fprintf(ofp, "\n");
-    // print_rot("tether_rot", rot);
-    // const dReal *v = dBodyGetLinearVel(payloadID);
-    // print_vel("payload_vel", v);
   }
 }
 
@@ -306,7 +380,11 @@ void SCoPEx::Init(int argc, char **argv) {
   payloadID = dBodyCreate (world);
   dMassSetBoxTotal (&m,payloadMass,payloadSize[0],payloadSize[1],payloadSize[2]);
   dBodySetMass (payloadID,&m);
-  dBodySetPosition (payloadID,0,0,balloonAltitude-balloonRadius-tetherLength-payloadSize[2]/2);
+  dReal payloadAltitude = balloonAltitude-balloonRadius-tetherLength-payloadSize[2]/2;
+  dBodySetPosition (payloadID,0,0,payloadAltitude);
+  prevPayloadPos[0] = 0;
+  prevPayloadPos[1] = 0;
+  prevPayloadPos[2] = payloadAltitude;
   dMatrix3 pRot = {
      0, 1, 0, 0,
     -1, 0, 0, 0,
