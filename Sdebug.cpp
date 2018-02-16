@@ -76,7 +76,7 @@ SCoPEx::SCoPEx() {
   payloadCd = 1.05; // assumes motion in Y direction only
   
   tetherID = 0;
-  tetherMass = 10; // Kg
+  tetherMass = 200; // Kg
   tetherRadius = 0.02;
   tetherLength = 3*balloonRadius;  // length
   
@@ -146,8 +146,10 @@ void SCoPEx::printForces(const char *when) {
 }
 
 void SCoPEx::Step() {
-  if (tcount >= 0)
-    dWorldQuickStep(world,stepSize);
+  if (tcount >= 0) {
+    dWorldStep(world,stepSize);
+    // dWorldQuickStep(world,stepSize);
+  }
 
   // buoyancy
   // fprintf(ofp, "Adding anti-gravity %.4lf\n", -payloadMass*GRAVITY);

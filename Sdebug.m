@@ -16,6 +16,8 @@ PlotBodyData(gondola);
 PlotBodyData(tether);
 PlotJointData(TGjoint);
 %%
+nsubplotst(T, [tether.Torque(:,1),TGjoint.t1(:,1),tether.Torque(:,1)+TGjoint.t1(:,1)], 'Tether Torques');
+%%
 M = reshape(rotM(end,:),4,3)';
 R = M(:,1:3);
 Y = [0;1;0];
