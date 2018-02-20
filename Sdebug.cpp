@@ -48,6 +48,7 @@ class SCoPEx {
     dReal payloadCd; // assumes motion in Y direction only
     
     dJointID tetherPayload;
+    dReal tetherPayloadSpace;
     dJointFeedback tetherPayloadFB;
 
     dReal stepSize;
@@ -79,6 +80,8 @@ SCoPEx::SCoPEx() {
   tetherMass = 200; // Kg
   tetherRadius = 0.02;
   tetherLength = 3*balloonRadius;  // length
+  
+  tetherPayloadSpace = 1;
   
   memset(&tetherPayloadFB, 0, sizeof(tetherPayloadFB));
   // thrust = 4.;
@@ -120,11 +123,11 @@ void SCoPEx::Init() {
   tetherID = dBodyCreate (world);
   dMassSetCylinderTotal(&m,tetherMass,3,tetherRadius,tetherLength);
   dBodySetMass (tetherID,&m);
-  dBodySetPosition (tetherID,0,0,payloadAltitude+tetherLength/2);
+  dBodySetPosition (tetherID,0,0,payloadAltitude+tetherPayloadSpace+tetherLength/2);
   
   tetherPayload = dJointCreateBall(world,0);
   dJointAttach(tetherPayload, tetherID, payloadID);
-  dJointSetBallAnchor(tetherPayload,0,0,payloadAltitude+payloadSize[2]/2);
+  dJointSetBallAnchor(tetherPayload,0,0,payloadAltitude+payloadSize[2]/2+tetherPayloadSpace/2);
   dJointEnable(tetherPayload);
   
   dJointSetFeedback(tetherPayload, &tetherPayloadFB);
@@ -134,7 +137,7 @@ void SCoPEx::printdRN(const dReal *d, int N) {
   int i;
   if (ofp) {
     for (i = 0; i < N; ++i) {
-      fprintf(ofp, ",%7.3lf", (double)d[i]);
+      fprintf(ofp, ",%12.8lf", (double)d[i]);
     }
   }
 }

@@ -1,8 +1,9 @@
-CPPFLAGS=-I /home/nort/Exp/SCoPEx/ode/pkg/usr/local/include \
-  -I /home/nort/Exp/SCoPEx/ode/include
+CPPFLAGS=-I /home/nort/Exp/SCoPEx/PORT/ode/pkg/usr/local/include \
+  -I /home/nort/Exp/SCoPEx/PORT/ode/include
 LDFLAGS=-L/home/nort/Exp/SCoPEx/PORT/ode/pkg/usr/local/lib -lode \
 	-L/home/nort/Exp/SCoPEx/PORT/ode/drawstuff/src -ldrawstuff \
 	-lGLU -lGL -L/usr/local/lib -lnort
+CXXFLAGS=-g
 CXXLD=$(CXX)
 LIBTOOL=libtool
 CXXLINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \

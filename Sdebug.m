@@ -1,4 +1,5 @@
 %%
+cd C:\Users\nort.ARP\Documents\Exp\SCoPEx\work
 clear all
 close all
 %%

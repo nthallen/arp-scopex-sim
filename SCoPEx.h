@@ -16,11 +16,10 @@ class SCoPEx {
     static void graphicsStart();
     static void graphicsCommand(int c);
   private:
-    void print_rot(const char *label, const dReal *rot);
-    void print_vel(const char *label, const dReal *v);
-    void printd3(FILE *ofp, dVector3 d3);
-    void printdR3(FILE *ofp, const dReal *d);
-    void printdRN(FILE *ofp, const dReal *d, int N);
+    void LogBody(dBodyID b);
+    void LogJoint(dJointFeedback *j);
+    void printdR3(const dReal *d);
+    void printdRN(const dReal *d, int N);
     void printTorque(const char *when, const dReal *torque);
     void dBodyAddDrag(dBodyID ID, dReal Cd, dReal Area);
     dReal angleDiff(dReal a1, dReal a2);
@@ -74,6 +73,7 @@ class SCoPEx {
 
     dJointID balloonTether;
     dJointID tetherPayload;
+    dJointFeedback tetherPayloadFB;
     
     dReal thrust;
     dReal thrustIncrement;

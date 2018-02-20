@@ -111,35 +111,16 @@ void SCoPEx::graphicsCommand(int c) {
     (double)Model.thrust, (double)Model.direction);
 }
 
-void SCoPEx::printd3(FILE *ofp, dVector3 d3) {
-  fprintf(ofp, ",%7.3lf,%7.3lf,%7.3lf", (double)d3[0], (double)d3[1], (double)d3[2]);
+void SCoPEx::printdR3(const dReal *d) {
+  printdRN(d,3);
+  // fprintf(ofp, ",%7.3lf,%7.3lf,%7.3lf", (double)d[0], (double)d[1], (double)d[2]);
 }
 
-void SCoPEx::printdR3(FILE *ofp, const dReal *d) {
-  fprintf(ofp, ",%7.3lf,%7.3lf,%7.3lf", (double)d[0], (double)d[1], (double)d[2]);
-}
-
-void SCoPEx::printdRN(FILE *ofp, const dReal *d, int N) {
+void SCoPEx::printdRN(const dReal *d, int N) {
   int i;
   for (i = 0; i < N; ++i) {
-    fprintf(ofp, ",%7.3lf", (double)d[i]);
+    fprintf(ofp, ",%12.8lf", (double)d[i]);
   }
-}
-
-void SCoPEx::print_rot(const char *label, const dReal *rot) {
-  int row, col;
-  fprintf(ofp, "%s: [", label);
-  for (row = 0; row < 3; ++row) {
-    fprintf(ofp, "\n  ");
-    for (col = 0; col < 4; ++col) {
-      fprintf(ofp, " %8.5lf", (double)rot[4*row+col]);
-    }
-  }
-  fprintf(ofp, "]\n");
-}
-
-void SCoPEx::print_vel(const char *label, const dReal *v) {
-  fprintf(ofp, "%s = [%8.5lf, %8.5lf, %8.5lf]\n", label, (double)v[0], (double)v[1], (double)v[2]);
 }
 
 void SCoPEx::dBodyAddDrag(dBodyID ID, dReal Cd, dReal Area) {
@@ -159,9 +140,12 @@ dReal SCoPEx::angleDiff(dReal a1, dReal a2) {
 }
 
 void SCoPEx::printTorque(const char *when, const dReal *torque) {
+  FILE *save_fp = ofp;
+  ofp = stdout;
   printf("%s", when);
-  printdR3(stdout, torque);
+  printdR3(torque);
   printf("\n");
+  ofp = save_fp;
 }
 
 void SCoPEx::Step() {
@@ -236,11 +220,12 @@ void SCoPEx::Step() {
   thrust_left = thrust * (1+dThrust) / 2;
   thrust_right = thrust * (1-dThrust) / 2;
   
+  printf("Thrust: %12.8lf %12.8lf\n", thrust_left, thrust_right);
   dBodyAddRelForceAtRelPos(payloadID, 0, thrust_left, 0,
-    -payloadSize[0]/2, -payloadSize[1]/2, payloadSize[2]/2);
+    -payloadSize[0]/2, -payloadSize[1]/2, 0); //payloadSize[2]/2);
   printTorque("After left thrust", gondolaTorque);
   dBodyAddRelForceAtRelPos(payloadID, 0, thrust_right, 0,
-    +payloadSize[0]/2, -payloadSize[1]/2, payloadSize[2]/2);
+    +payloadSize[0]/2, -payloadSize[1]/2, 0); // payloadSize[2]/2);
   printTorque("After right thrust", gondolaTorque);
 
   ++tcount;
@@ -249,49 +234,53 @@ void SCoPEx::Step() {
   }
 }
 
+void SCoPEx::LogBody(dBodyID b) {
+  const dReal *vec = dBodyGetPosition(b);
+  printdRN(vec, 3);
+ vec = dBodyGetLinearVel(b);
+  printdRN(vec, 3);
+  vec = dBodyGetForce(b);
+  printdRN(vec, 3);
+  vec = dBodyGetTorque(b);
+  printdRN(vec, 3);
+  vec = dBodyGetRotation(b);
+  printdRN(vec, 12);
+}
+
+void SCoPEx::LogJoint(dJointFeedback *j) {
+  printdRN(j->f1,3);
+  printdRN(j->t1,3);
+  printdRN(j->f2,3);
+  printdRN(j->t2,3);
+}
+
 /* Current log format
-  D = load('scopex.log');
-  stepSize = 0.05;
-  T = D(:,1)*stepSize;
-  Di = 2;
-  balloonPos = D(:,Di:Di+2); Di = Di + 3;
-  tetherPos = D(:,Di:Di+2); Di = Di + 3;
-  gondolaPos = D(:,Di:Di+2); Di = Di + 3;
-  gondolaAngle = D(:,Di); Di = Di + 1;
-  gondolaVelocityAngleSetpoint = D(:,Di); Di = Di + 1;
-  thrust = D(:,Di:Di+2); Di = Di + 3;
-  gondolaVelocityAngle = D(:,Di); Di = Di + 1;
-  gondolaSpeed = D(:,Di); Di = Di + 1;
+function [B, Di] = GetBodyData(D, col)
+  Di = col;
+  B.T = D(:,1);
+  B.Pos = D(:,Di:Di+2); Di = Di + 3;
+  B.Vel = D(:,Di:Di+2); Di = Di + 3;
+  B.Force = D(:,Di:Di+2); Di = Di + 3;
+  B.Torque = D(:,Di:Di+2); Di = Di + 3;
   rotM = D(:,Di:Di+11); Di = Di + 12;
-  gondolaVel = D(:,Di:Di+2); Di = Di + 3;
-  gondolaForce = D(:,Di:Di+2); Di = Di + 3;
-  gondolaTorque = D(:,Di:Di+2); Di = Di + 3;
+
+  D = load('scopex.log');
+  T = D(:,1);
+  Di = 2;
+  [gondola,Di] = GetBodyData(D,Di);
+  [tether,Di] = GetBodyData(D,Di);
+  [balloon,Di] = GetBodyData(D,Di);
+  [TGjoint,Di] = GetJointData(D,Di);
+  [Thrust,Di] = GetThrust(D,Di);
  */
 void SCoPEx::Log() {
-  const dReal *pos1,*pos2,*pos3;
-  if (opt_logfile) {
-    pos1 = dBodyGetPosition(balloonID); // get a position
-    pos2 = dBodyGetPosition(tetherID);
-    pos3 = dBodyGetPosition(payloadID);
-    
-    fprintf(ofp, "%7d", tcount);
-    printdR3(ofp, pos1);
-    printdR3(ofp, pos2);
-    printdR3(ofp, pos3);
-    fprintf(ofp, ",%7.4lf,%7.4lf,%7.4lf,%7.4lf,%7.4lf,%7.4lf",
-      (double)boxAngle, (double)direction,
-      (double)thrust_left, (double) thrust_right,
-      (double)boxVelocityAngle, (double)boxSpeed);
-    const dReal *rotM = dBodyGetRotation(payloadID);
-    printdRN(ofp, rotM, 12);
-    const dReal *vel = dBodyGetLinearVel(payloadID);
-    printdR3(ofp, vel);
-    vel = dBodyGetForce(payloadID);
-    printdR3(ofp, vel);
-    vel = dBodyGetTorque(payloadID);
-    printdR3(ofp, vel);
-    fprintf(ofp, "\n");
-  }
+  fprintf(ofp, "%7.2lf", tcount*stepSize);
+  LogBody(payloadID);
+  LogBody(tetherID);
+  LogBody(balloonID);
+  LogJoint(&tetherPayloadFB);
+  fprintf(ofp,",%12.8lf,%12.8lf", thrust_left, thrust_right);
+  fprintf(ofp, "\n");
 }
 
 void SCoPEx::Draw() {
