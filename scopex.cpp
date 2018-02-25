@@ -37,9 +37,12 @@ SCoPEx::SCoPEx() {
   direction = 90.; // +Y [-180, 180]
   directionIncrement = 5; // degrees
   PGain = 0.4/90;
-  IGain = 0;
+  VPGain = 0;
   DGain = 0;
   stepSize = 0.05;
+  gondolaVelocityAngle = 90;
+  gondolaAngle = 90;
+  gondolaSpeed = 0;
   prevAngleError = 0;
   ofp = 0;
   tcount = 0;
@@ -48,8 +51,7 @@ SCoPEx::SCoPEx() {
   opt_logfile = 0;
   cmdfile = 0;
   nextCmdTime = 0;
-  velocityAngleIntegral = 0;
-  velocityAngleIntegralLimit = 45; //*< degrees
+  velocityAngleCorrLimit = 45; //*< degrees
 }
 
 SCoPEx::~SCoPEx() {}
@@ -165,7 +167,7 @@ void SCoPEx::Step() {
   }
 
   const dReal *gondolaTorque = dBodyGetTorque(payloadID);
-  printTorque("After step", gondolaTorque);
+  // printTorque("After step", gondolaTorque);
   
   direction = angleDiff(direction,0); // Normalize
   
@@ -174,42 +176,40 @@ void SCoPEx::Step() {
   // Drag
   dBodyAddDrag(balloonID, balloonCd, balloonArea);
   dBodyAddDrag(payloadID, payloadCd, payloadArea);
-  printTorque("After drag", gondolaTorque);
+  // printTorque("After drag", gondolaTorque);
   
   const dReal *newPayloadPos = dBodyGetPosition(payloadID);
   dVector3 boxVelocity;
-  boxSpeed = 0;
+  gondolaSpeed = 0;
   for (int i = 0; i < 3; ++i) {
     boxVelocity[i] = (newPayloadPos[i]-prevPayloadPos[i])/stepSize;
-    boxSpeed += boxVelocity[i]*boxVelocity[i];
+    gondolaSpeed += boxVelocity[i]*boxVelocity[i];
     prevPayloadPos[i] = newPayloadPos[i];
   }
-  boxVelocityAngle = atan2(boxVelocity[1],boxVelocity[0]) *
-    180/3.141592653589793;
-  boxSpeed = sqrt(boxSpeed);
-  
-  // Thrust
-  // dBodyAddForce(payloadID, 0, thrust, 0);
+  gondolaSpeed = sqrt(gondolaSpeed);
+
   const dReal *rot = dBodyGetRotation(payloadID);
-  boxAngle = atan2(rot[1*4+1],rot[0*4+1])*180/3.141592653589793;
+  gondolaAngle = atan2(rot[1*4+1],rot[0*4+1])*180/3.141592653589793;
+
+  gondolaVelocityAngle = gondolaSpeed > 0.001 ?
+    atan2(boxVelocity[1],boxVelocity[0]) * 180/3.141592653589793 :
+    gondolaAngle;
+  
   
   // The outer control loop. This is configured such that
   // PGain and DGain define the inner loop, which controls the gondola
-  // angle (and hence the thrust angle). IGain controls the outer
+  // angle (and hence the thrust angle). VPGain controls the outer
   // loop, which feeds back on velocity angle. All three gains
   // should be positive.
-  dReal velocityAngleError = angleDiff(boxVelocityAngle, direction);
-  if (IGain != 0) {
-    velocityAngleIntegral += velocityAngleError;
-    if (velocityAngleIntegral * IGain > velocityAngleIntegralLimit) {
-      velocityAngleIntegral = velocityAngleIntegralLimit/IGain;
-    } else if (velocityAngleIntegral * IGain < -velocityAngleIntegralLimit) {
-      velocityAngleIntegral = -velocityAngleIntegralLimit/IGain;
-    }
-  } else velocityAngleIntegral = 0;
+  dReal velocityAngleError = angleDiff(gondolaVelocityAngle, direction);
+  dReal velocityAngleCorr = velocityAngleError * VPGain;
+  if (velocityAngleCorr > velocityAngleCorrLimit)
+    velocityAngleCorr = velocityAngleCorrLimit;
+  else if (velocityAngleCorr < -velocityAngleCorrLimit)
+    velocityAngleCorr = -velocityAngleCorrLimit;
   
-  gondolaAngleSetpoint = direction - velocityAngleIntegral * IGain;
-  dReal angleError = angleDiff(boxVelocityAngle, gondolaAngleSetpoint);
+  gondolaAngleSetpoint = direction - velocityAngleCorr;
+  dReal angleError = angleDiff(gondolaVelocityAngle, gondolaAngleSetpoint);
   dReal errorChange = angleError - prevAngleError;
   prevAngleError = angleError;
   
@@ -220,13 +220,13 @@ void SCoPEx::Step() {
   thrust_left = thrust * (1+dThrust) / 2;
   thrust_right = thrust * (1-dThrust) / 2;
   
-  printf("Thrust: %12.8lf %12.8lf\n", thrust_left, thrust_right);
+  // printf("Thrust: %12.8lf %12.8lf\n", thrust_left, thrust_right);
   dBodyAddRelForceAtRelPos(payloadID, 0, thrust_left, 0,
     -payloadSize[0]/2, -payloadSize[1]/2, 0); //payloadSize[2]/2);
-  printTorque("After left thrust", gondolaTorque);
+  // printTorque("After left thrust", gondolaTorque);
   dBodyAddRelForceAtRelPos(payloadID, 0, thrust_right, 0,
     +payloadSize[0]/2, -payloadSize[1]/2, 0); // payloadSize[2]/2);
-  printTorque("After right thrust", gondolaTorque);
+  // printTorque("After right thrust", gondolaTorque);
 
   ++tcount;
   if (tcount*stepSize > 30 && !opt_commandfile && !opt_graphics) {
@@ -271,15 +271,18 @@ function [B, Di] = GetBodyData(D, col)
   [tether,Di] = GetBodyData(D,Di);
   [balloon,Di] = GetBodyData(D,Di);
   [TGjoint,Di] = GetJointData(D,Di);
-  [Thrust,Di] = GetThrust(D,Di);
+  [Thrust,Di] = GetSimVar(D,'Thrust',Di);
+  [Gangles,Di] = GetSimVar(D,'GondolaAngles',Di);
  */
 void SCoPEx::Log() {
   fprintf(ofp, "%7.2lf", tcount*stepSize);
   LogBody(payloadID);
-  LogBody(tetherID);
-  LogBody(balloonID);
-  LogJoint(&tetherPayloadFB);
+  // LogBody(tetherID);
+  // LogBody(balloonID);
+  // LogJoint(&tetherPayloadFB);
   fprintf(ofp,",%12.8lf,%12.8lf", thrust_left, thrust_right);
+  fprintf(ofp,"%12.8lf,%12.8lf,%12.8lf", gondolaAngle,
+          gondolaVelocityAngle, gondolaSpeed);
   fprintf(ofp, "\n");
 }
 
@@ -337,7 +340,7 @@ void SCoPEx::Init(int argc, char **argv) {
     cmdfile->addVariable(&thrust, "Thrust");
     cmdfile->addVariable(&direction, "Direction");
     cmdfile->addVariable(&PGain, "PGain");
-    cmdfile->addVariable(&IGain, "IGain");
+    cmdfile->addVariable(&VPGain, "VPGain");
     cmdfile->addVariable(&DGain, "DGain");
   }
   dInitODE();              // Initialize ODE

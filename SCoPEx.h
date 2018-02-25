@@ -36,9 +36,9 @@ class SCoPEx {
     dReal balloonRadius; // m
     dReal balloonAltitude; // m
     dReal balloonArea; // m^2
-    dReal boxAngle;
-    dReal boxVelocityAngle;
-    dReal boxSpeed;
+    dReal gondolaAngle;
+    dReal gondolaVelocityAngle;
+    dReal gondolaSpeed;
     dReal thrust_left;
     dReal thrust_right;
     
@@ -61,8 +61,7 @@ class SCoPEx {
     // direction, which is commanded, specifies the desired velocity direction
     // The setpoint for gondola angle control
     dReal gondolaAngleSetpoint;
-    dReal velocityAngleIntegral;
-    dReal velocityAngleIntegralLimit;
+    dReal velocityAngleCorrLimit;
     dReal prevAngleError;
     dVector3 prevPayloadPos;
 
@@ -80,8 +79,8 @@ class SCoPEx {
     dReal direction; // +Y [-180, 180]
     dReal directionIncrement; // degrees
     dReal PGain;
-    dReal IGain;
     dReal DGain;
+    dReal VPGain;
     dReal stepSize;
     static constexpr dReal GRAVITY = -9.81;
 };

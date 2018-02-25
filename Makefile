@@ -10,8 +10,8 @@ CXXLINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 
-.PHONY : all
-all : demo1 demo2 demo3 scopex
+.PHONY : all clean
+all : scopex
 demo1 : demo1.o
 	$(CXXLINK) demo1.o
 demo1.o : demo1.cpp
@@ -32,3 +32,6 @@ commandfile.o : commandfile.cpp
 Sdebug : Sdebug.o
 	$(CXXLINK) Sdebug.o
 Sdebug.o : Sdebug.cpp
+
+clean :
+	rm -f *.o Sdebug scopex demo1 demo2 demo3

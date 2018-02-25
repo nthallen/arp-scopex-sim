@@ -1,7 +1,7 @@
 # Comment
 0 Set Thrust 3
 0 Set PGain  0.00018
-0 Set IGain  0.00001
+0 Set VPGain  0.00001
 0 Set DGain  0.6
 600 Set Thrust 10
 600 Quit
