@@ -16,6 +16,7 @@ class SCoPEx {
     static void graphicsStart();
     static void graphicsCommand(int c);
   private:
+    void calculateBuoyancy();
     void LogBody(dBodyID b);
     void LogJoint(dJointFeedback *j);
     void printdR3(const dReal *d);
@@ -25,17 +26,17 @@ class SCoPEx {
     dReal angleDiff(dReal a1, dReal a2);
     int tcount;
     double nextCmdTime;
-    dReal Pressure; // hPa
-    dReal Temperature; // K
-    dReal R; // Pa m^3 mol-1 K-1
-    dReal air_molar_mass; // g/mol
-    dReal rho_air; // Kg/m^3
+    double Pressure; // hPa
+    double Temperature; // K
     dBodyID balloonID;
-    dReal balloonCd;
+    dReal balloonCd; // function of balloon size, altitude
     dReal balloonMass; // Kg
-    dReal balloonRadius; // m
-    dReal balloonAltitude; // m
-    dReal balloonArea; // m^2
+    dReal balloonRadius; // m: varies with altitude, used for drag
+    dReal balloonMaxRadius; // m: used to determine tether length
+    dReal balloonMaxVolume; // m^3: calculated from balloonMaxRadius
+    dReal HeliumMass; //
+    dReal initialAltitude; // m
+    // dReal balloonArea; // m^2
     dReal gondolaAngle;
     dReal gondolaVelocityAngle;
     dReal gondolaSpeed;
@@ -82,7 +83,11 @@ class SCoPEx {
     dReal DGain;
     dReal VPGain;
     dReal stepSize;
-    static constexpr dReal GRAVITY = -9.81;
+    dReal gravity;
+    static constexpr dReal R_He = 2077; // J/(kg K) specific gas constant for Helium
+    static constexpr dReal R_air = 287.058; // J/(kg K) specific gas constant for dry  air
+    static constexpr dReal dRinv = (1/R_He - 1/R_air); // kg K/J
+    static constexpr dReal pi = 3.14159265358979;
 };
 
 #endif

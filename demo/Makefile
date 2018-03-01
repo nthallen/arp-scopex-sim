@@ -2,8 +2,7 @@ CPPFLAGS=-I /home/nort/Exp/SCoPEx/PORT/ode/pkg/usr/local/include \
   -I /home/nort/Exp/SCoPEx/PORT/ode/include
 LDFLAGS=-L/home/nort/Exp/SCoPEx/PORT/ode/pkg/usr/local/lib -lode \
 	-L/home/nort/Exp/SCoPEx/PORT/ode/drawstuff/src -ldrawstuff \
-	-lGLU -lGL -L/usr/local/lib -lnort
-MA_LDFLAGS=
+	-lGLU -lGL
 CXXFLAGS=-g
 CXXLD=$(CXX)
 LIBTOOL=libtool
@@ -12,19 +11,18 @@ CXXLINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 
 .PHONY : all clean
-all : scopex
+all : demo1 demo2 demo3
+demo1 : demo1.o
+	$(CXXLINK) demo1.o
+demo1.o : demo1.cpp
 
-scopex : scopex.o commandfile.o model_atmos.o
-	$(CXXLINK) scopex.o commandfile.o model_atmos.o
-scopex.o : scopex.cpp
-commandfile.o : commandfile.cpp
+demo2 : demo2.o
+	$(CXXLINK) demo2.o
+demo2.o : demo2.cpp
 
-Sdebug : Sdebug.o
-	$(CXXLINK) Sdebug.o
-Sdebug.o : Sdebug.cpp
-
-model_atmos : model_atmos.o
-	$(CXXLD) $(CXXFLAGS) $(MS_LDFLAGS) -o model_atmos model_atmos.o
+demo3 : demo3.o
+	$(CXXLINK) demo3.o
+demo3.o : demo3.cpp
 
 clean :
-	rm -f *.o Sdebug scopex
+	rm -f *.o demo1 demo2 demo3

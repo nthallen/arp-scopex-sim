@@ -9,29 +9,35 @@
 #include "ode/mass.h"
 #include "drawstuff/drawstuff.h"
 #include "nortlib.h"
+#include "model_atmos.h"
 
 SCoPEx Model;
 
 SCoPEx::SCoPEx() {
-  Pressure = 50; // hPa
-  Temperature = 212; // K
-  R = 8.314; // Pa m^3 mol-1 K-1
-  air_molar_mass = 28.97; // g/mol
-  rho_air = air_molar_mass*Pressure*0.1/(R*Temperature); // Kg/m^3
-  balloonCd = 0.5;
-  balloonMass = 477.0; // Kg
-  balloonRadius = 14.58495; // m
-  balloonAltitude = 20000.0; // m
-  balloonArea = 3.141592653589793 * balloonRadius * balloonRadius; // m^2
+  Pressure = 50; // hPa Derived using model_atmos
+  Temperature = 212; // K Derived using model_atmos
+  // R = 8.314; // Pa m^3 mol-1 K-1
+  // air_molar_mass = 28.97; // g/mol
+  // rho_air = air_molar_mass*Pressure*0.1/(R*Temperature); // Kg/m^3
+  // dRinv = (1/R_He - 1/R_air); // kg K/J
+  balloonCd = 0.4;
+  balloonMass = 477.0; // kg
+  balloonRadius = 0; // Derived
+  balloonMaxRadius = 14.58495; // m
+  balloonMaxVolume = pi*(4./3.)*pow(balloonMaxRadius,3);
+  HeliumMass = 150; // kg
+  initialAltitude = 0.0; // m
+  // balloonAltitude = 0.0; // m
+  // balloonArea = pi * balloonRadius * balloonRadius; // m^2 Derived
   payloadMass = 444.0; // Kg
   payloadSize[0] = 1; // m
   payloadSize[1] = 1;
   payloadSize[2] = 1;
-  payloadArea = payloadSize[0]*payloadSize[3]; // X x Z, assumes motion in Y direction only
+  payloadArea = payloadSize[0]*payloadSize[2]; // X x Z, assumes motion in Y direction only
   payloadCd = 1.05; // assumes motion in Y direction only
   tetherMass = 10; // Kg
   tetherRadius = 0.02;
-  tetherLength = 3*balloonRadius;  // length
+  tetherLength = 3*balloonMaxRadius;  // length
   thrust = 4.;
   thrustIncrement = 0.25;
   direction = 90.; // +Y [-180, 180]
@@ -70,11 +76,14 @@ void dMassSetSphericalShell (dMass *m, dReal total_mass, dReal radius) {
 # endif
 }
 
+/**
+ * Static function for calling from drawstuff
+ */
 void SCoPEx::graphicsStart() {
   static float xyz[3] = {
       (float)1.2*(2*Model.balloonRadius+Model.tetherLength),
       3,
-      (float)Model.balloonAltitude-Model.balloonRadius-Model.tetherLength}; // view point [m]
+      (float)Model.initialAltitude}; // view point [m]
   static float hpr[3] = {-180, 20.5, 0}; // view direction[°]
   dsSetViewpoint (xyz,hpr);           // set a view point and direction
   puts("Controls:");
@@ -130,8 +139,13 @@ void SCoPEx::dBodyAddDrag(dBodyID ID, dReal Cd, dReal Area) {
   double Vs2 = V[0]*V[0] + V[1]*V[1] + V[2]*V[2];
   if (Vs2 > 1e-6) {
     double Vs = sqrt(Vs2);
+    double rho_air = Pressure*100/(R_air*Temperature);
     double Fds = 0.5*rho_air*Vs2*Cd*Area;
-    dBodyAddForce(ID, -V[0]*Fds/Vs, -V[1]*Fds/Vs, -V[0]*Fds/Vs);
+    dBodyAddForce(ID, -V[0]*Fds/Vs, -V[1]*Fds/Vs, -V[2]*Fds/Vs);
+    // if (tcount%1200 == 0 && ID == balloonID) {
+      // printf("%5d %5.3lf %6.3lf %4.2f %7.1f %7.1lf\n",
+        // tcount/1200, rho_air, Vs2, Cd, Area, Fds);
+    // }
   }
 }
 
@@ -167,13 +181,15 @@ void SCoPEx::Step() {
   }
 
   const dReal *gondolaTorque = dBodyGetTorque(payloadID);
-  // printTorque("After step", gondolaTorque);
   
   direction = angleDiff(direction,0); // Normalize
   
   // buoyancy
-  dBodyAddForce(balloonID, 0, 0, -(balloonMass+tetherMass+payloadMass)*GRAVITY);
+  calculateBuoyancy();
+  // dBodyAddForce(balloonID, 0, 0, -(balloonMass+tetherMass+payloadMass)*GRAVITY);
   // Drag
+  dReal balloonArea = pi*balloonRadius*balloonRadius;
+  // ### calculate balloonCd based on altitude, velocity
   dBodyAddDrag(balloonID, balloonCd, balloonArea);
   dBodyAddDrag(payloadID, payloadCd, payloadArea);
   // printTorque("After drag", gondolaTorque);
@@ -189,10 +205,10 @@ void SCoPEx::Step() {
   gondolaSpeed = sqrt(gondolaSpeed);
 
   const dReal *rot = dBodyGetRotation(payloadID);
-  gondolaAngle = atan2(rot[1*4+1],rot[0*4+1])*180/3.141592653589793;
+  gondolaAngle = atan2(rot[1*4+1],rot[0*4+1])*180/pi;
 
   gondolaVelocityAngle = gondolaSpeed > 0.001 ?
-    atan2(boxVelocity[1],boxVelocity[0]) * 180/3.141592653589793 :
+    atan2(boxVelocity[1],boxVelocity[0]) * 180/pi :
     gondolaAngle;
   
   
@@ -314,6 +330,38 @@ static void graphicsStep(int pause) {
   Model.Draw();
 }
 
+void SCoPEx::calculateBuoyancy() {
+  // First determine gravity
+  dReal k_g = -9.81*6371*6371;
+  dReal const *balloonPos = dBodyGetPosition(balloonID);
+  dReal alt_km = balloonPos[2]/1000;
+  dReal den = 6371+alt_km;
+  gravity = k_g/(den*den);
+  dWorldSetGravity(world,0,0,gravity);
+  
+  // Balloon Volume
+  model_atmos::get_PT(alt_km, Pressure, Temperature);
+  dReal balloonVolume = HeliumMass * R_He * Temperature / (Pressure*100);
+  if (balloonVolume > balloonMaxVolume) {
+    balloonVolume = balloonMaxVolume;
+    HeliumMass = balloonVolume * Pressure * 100 / (R_He * Temperature);
+  }
+  dReal F = gravity * balloonVolume*Pressure*100*dRinv/Temperature;
+  dBodyAddForce(balloonID, 0, 0, F);
+  
+  balloonRadius = pow((3*balloonVolume/(4*pi)), 1./3);
+  dMass m;                 // mass parameter
+  dMassSetSphericalShell(&m,balloonMass,balloonRadius);
+  dBodySetMass (balloonID,&m);
+  if (tcount%1200 == 0) {
+    dReal Fg = (balloonMass+payloadMass)*gravity;
+    printf("%5d %4.1f %5.1f %7.1f %7.1f %7.1f %7.2f %6.2f\n",
+      tcount/1200,
+      alt_km, HeliumMass, balloonVolume, F, Fg, Pressure, Temperature);
+    if (alt_km < 0) exit(0);
+  }
+}
+
 void SCoPEx::Init(int argc, char **argv) {
   int c;
   opterr = 0; /* disable default error message */
@@ -345,19 +393,25 @@ void SCoPEx::Init(int argc, char **argv) {
   }
   dInitODE();              // Initialize ODE
   world = dWorldCreate();  // Create a world
-  dWorldSetGravity(world,0,0,GRAVITY);
 
   dMass m;                 // mass parameter
   dMassSetZero (&m);  //set mass parameter to zero
 
+  dReal payloadAltitude = initialAltitude+payloadSize[2]/2;
+  dReal tetherAltitude = initialAltitude+payloadSize[2]+tetherLength/2;
+  dReal balloonAltitude =
+    initialAltitude+payloadSize[2]+tetherLength+balloonMaxRadius;
+  
   // sphere
   balloonID = dBodyCreate (world);     //  create a body
-  dMassSetSphericalShell(&m,balloonMass,balloonRadius); // Calcurate mass parameter
-  dBodySetMass (balloonID,&m);  // Set mass parameter to the body
-  //dBodySetPosition (balloonID,0,1, balloonRadius + tetherLength + 1); // Set a position
+  // dMassSetSphericalShell(&m,balloonMass,balloonRadius); // Calculate mass parameter
+  // dBodySetMass (balloonID,&m);  // Set mass parameter to the body
+  // dBodySetPosition (balloonID,0,1, balloonRadius + tetherLength + 1); // Set a position
   dBodySetPosition (balloonID,0,0, balloonAltitude); // Set a position
 
-  // Cylinder
+  calculateBuoyancy();
+
+  // Tether
   tetherID = dBodyCreate (world);
   dMassSetCylinderTotal(&m,tetherMass,3,tetherRadius,tetherLength);
   dBodySetMass (tetherID,&m);
@@ -368,19 +422,18 @@ void SCoPEx::Init(int argc, char **argv) {
   dJointSetBallAnchor(balloonTether,0,0,balloonAltitude-balloonRadius);
   dJointEnable(balloonTether);
 
-  // Box
+  // payload
   payloadID = dBodyCreate (world);
   dMassSetBoxTotal (&m,payloadMass,payloadSize[0],payloadSize[1],payloadSize[2]);
   dBodySetMass (payloadID,&m);
-  dReal payloadAltitude = balloonAltitude-balloonRadius-tetherLength-payloadSize[2]/2;
   dBodySetPosition (payloadID,0,0,payloadAltitude);
   prevPayloadPos[0] = 0;
   prevPayloadPos[1] = 0;
   prevPayloadPos[2] = payloadAltitude;
-  dMatrix3 pRot = {
-     0, 1, 0, 0,
-    -1, 0, 0, 0,
-     0, 0, 1, 0 };
+  // dMatrix3 pRot = {
+     // 0, 1, 0, 0,
+    // -1, 0, 0, 0,
+     // 0, 0, 1, 0 };
   //dBodySetRotation(payloadID, pRot);
   
   tetherPayload = dJointCreateBall(world,0);

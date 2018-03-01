@@ -1,3 +1,6 @@
 #! /bin/bash
-./scopex -f SingleStep.scp -lscopex.log
+#./scopex -f SingleStep.scp -lscopex.log
+# 
 #./scopex -f Straight.scp -lscopex.log
+# Check buoyancy:
+./scopex -f Climb.scp -lscopex.log
