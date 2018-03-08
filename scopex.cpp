@@ -362,11 +362,11 @@ void SCoPEx::calculateBuoyancy() {
   }
   balloonRadius = 1.383 * pow(balloonVolume,1./3) / 2;
   balloonHeight = 0.748 * 2 * balloonRadius;
-  dReal ductHeight = (ductVerticalOffset >= balloonHeight) ? 0 :
-            balloonHeight - ductVerticalOffset;
+  dReal ductHeight = balloonHeight - ductVerticalOffset;
   dReal dP = gravity*(Pressure*100/Temperature)*dRinv*ductHeight + Poffset;
-  ductDischargeRate = ductArea * ductCdischarge * sqrt(2 * dP * rho_he);
-  dReal F = gravity * balloonVolume*Pressure*100*dRinv/Temperature;
+  ductDischargeRate = (dP > 0) ? ductArea * ductCdischarge * sqrt(2 * dP * rho_he) : 0;
+  dReal AirMass = balloonVolume * Pressure * 100 / (R_air * Temperature);
+  dReal F = gravity * (HeliumMass - AirMass);
   dBodyAddForce(balloonID, 0, 0, F);
   
   dMass m;                 // mass parameter

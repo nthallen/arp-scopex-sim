@@ -3,8 +3,8 @@
 0 Set PGain  0
 0 Set VPGain  0
 0 Set DGain  0
-0 Set initialAltitude 15000
+0 Set initialAltitude 20000
 0 Set ductArea 0.002
 0 Set ductCdischarge 0.6
-0 Set ductHeightRatio 0.05
-40000 Quit
+0 Set ductHeightRatio -0.05
+10000 Quit
