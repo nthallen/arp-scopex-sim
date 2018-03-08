@@ -4,12 +4,12 @@ clear all
 close all
 %%
 % Copied from scopex.cpp
-D = load('scopex.log');
+% D = load('scopex.log');
 %%
 filename = 'scopex.log';
-formatSpec = '%7f%13f%13f%15f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%12f%13f%f%[^\n\r]';
+formatSpec = '%9f%13f%13f%15f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%13f%12f%13f%f%[^\n\r]';
 fileID = fopen(filename,'r');
-dataArray = textscan(fileID, formatSpec, 'Delimiter', '', 'WhiteSpace', '', 'EmptyValue' ,NaN, 'ReturnOnError', false);
+dataArray = textscan(fileID, formatSpec, 'Delimiter', ',', 'WhiteSpace', '', 'EmptyValue' ,NaN, 'ReturnOnError', false);
 fclose(fileID);
 D = [dataArray{1:end-1}];
 clearvars filename formatSpec fileID dataArray ans;

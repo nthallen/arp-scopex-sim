@@ -23,13 +23,19 @@ SCoPEx::SCoPEx() {
   balloonCd = 0.4;
   balloonMass = 477.0; // kg
   balloonRadius = 0; // Derived
-  balloonMaxRadius = 14.58495; // m
-  balloonMaxVolume = pi*(4./3.)*pow(balloonMaxRadius,3);
+  balloonMaxVolume = 12996; // m^3 (from spreadsheet)
+  // formulas from Palumbo dissertation
+  balloonMaxRadius = 1.383 * pow(balloonMaxVolume, 1./3) / 2;
+  balloonMaxHeight = 0.748 * 2 * balloonMaxRadius; // m
+  ductCdischarge = 0.75; // duct discharge coefficient: between 0.5 and 1
+  ductArea = 0.073; // duct area m^2 (1ft diameter)
+  ductHeightRatio = 0.47;
+  ductDischargeRate = 0;
   HeliumMass = 150; // kg
-  initialAltitude = 0.0; // m
+  initialAltitude = 0; // m
   // balloonAltitude = 0.0; // m
   // balloonArea = pi * balloonRadius * balloonRadius; // m^2 Derived
-  payloadMass = 444.0; // Kg
+  payloadMass = 444.0; // Kg (reduced by tetherMass)
   payloadSize[0] = 1; // m
   payloadSize[1] = 1;
   payloadSize[2] = 1;
@@ -37,7 +43,7 @@ SCoPEx::SCoPEx() {
   payloadCd = 1.05; // assumes motion in Y direction only
   tetherMass = 10; // Kg
   tetherRadius = 0.02;
-  tetherLength = 3*balloonMaxRadius;  // length
+  tetherLength = 2*balloonMaxHeight;  // length
   thrust = 4.;
   thrustIncrement = 0.25;
   direction = 90.; // +Y [-180, 180]
@@ -45,7 +51,7 @@ SCoPEx::SCoPEx() {
   PGain = 0.4/90;
   VPGain = 0;
   DGain = 0;
-  stepSize = 0.05;
+  stepSize = 0.05; // seconds
   gondolaVelocityAngle = 90;
   gondolaAngle = 90;
   gondolaSpeed = 0;
@@ -164,10 +170,7 @@ void SCoPEx::printTorque(const char *when, const dReal *torque) {
   ofp = save_fp;
 }
 
-void SCoPEx::Step() {
-  if (tcount > 0)
-    dWorldStep(world,stepSize);
-
+void SCoPEx::commandStep() {
   if (opt_commandfile) {
     double now = tcount * stepSize;
     while (nextCmdTime <= now) {
@@ -179,6 +182,13 @@ void SCoPEx::Step() {
       nextCmdTime = now+dT;
     }
   }
+}
+
+void SCoPEx::Step() {
+  if (tcount > 0)
+    dWorldStep(world,stepSize);
+
+  commandStep();
 
   const dReal *gondolaTorque = dBodyGetTorque(payloadID);
   
@@ -284,9 +294,9 @@ function [B, Di] = GetBodyData(D, col)
   T = D(:,1);
   Di = 2;
   [gondola,Di] = GetBodyData(D,Di);
-  [tether,Di] = GetBodyData(D,Di);
-  [balloon,Di] = GetBodyData(D,Di);
-  [TGjoint,Di] = GetJointData(D,Di);
+  %[tether,Di] = GetBodyData(D,Di);
+  %[balloon,Di] = GetBodyData(D,Di);
+  %[TGjoint,Di] = GetJointData(D,Di);
   [Thrust,Di] = GetSimVar(D,'Thrust',Di);
   [Gangles,Di] = GetSimVar(D,'GondolaAngles',Di);
  */
@@ -340,21 +350,30 @@ void SCoPEx::calculateBuoyancy() {
   dWorldSetGravity(world,0,0,gravity);
   
   // Balloon Volume
+  HeliumMass -= ductDischargeRate * stepSize;
   model_atmos::get_PT(alt_km, Pressure, Temperature);
-  dReal balloonVolume = HeliumMass * R_He * Temperature / (Pressure*100);
+  dReal rho_he = Pressure*100/(R_He * Temperature);
+  dReal balloonVolume = HeliumMass / rho_he;
+  dReal Poffset = 0.; // Pa
   if (balloonVolume > balloonMaxVolume) {
     balloonVolume = balloonMaxVolume;
-    HeliumMass = balloonVolume * Pressure * 100 / (R_He * Temperature);
+    rho_he = HeliumMass/balloonVolume;
+    Poffset = rho_he * R_He * Temperature - Pressure*100;
   }
+  balloonRadius = 1.383 * pow(balloonVolume,1./3) / 2;
+  balloonHeight = 0.748 * 2 * balloonRadius;
+  dReal ductHeight = (ductVerticalOffset >= balloonHeight) ? 0 :
+            balloonHeight - ductVerticalOffset;
+  dReal dP = gravity*(Pressure*100/Temperature)*dRinv*ductHeight + Poffset;
+  ductDischargeRate = ductArea * ductCdischarge * sqrt(2 * dP * rho_he);
   dReal F = gravity * balloonVolume*Pressure*100*dRinv/Temperature;
   dBodyAddForce(balloonID, 0, 0, F);
   
-  balloonRadius = pow((3*balloonVolume/(4*pi)), 1./3);
   dMass m;                 // mass parameter
   dMassSetSphericalShell(&m,balloonMass,balloonRadius);
   dBodySetMass (balloonID,&m);
   if (tcount%1200 == 0) {
-    dReal Fg = (balloonMass+payloadMass)*gravity;
+    dReal Fg = (balloonMass+payloadMass+tetherMass)*gravity;
     printf("%5d %4.1f %5.1f %7.1f %7.1f %7.1f %7.2f %6.2f\n",
       tcount/1200,
       alt_km, HeliumMass, balloonVolume, F, Fg, Pressure, Temperature);
@@ -390,7 +409,12 @@ void SCoPEx::Init(int argc, char **argv) {
     cmdfile->addVariable(&PGain, "PGain");
     cmdfile->addVariable(&VPGain, "VPGain");
     cmdfile->addVariable(&DGain, "DGain");
+    cmdfile->addVariable(&initialAltitude, "initialAltitude");
+    cmdfile->addVariable(&ductCdischarge, "ductCdischarge");
+    cmdfile->addVariable(&ductArea, "ductArea");
+    cmdfile->addVariable(&ductHeightRatio, "ductHeightRatio");
   }
+  commandStep();
   dInitODE();              // Initialize ODE
   world = dWorldCreate();  // Create a world
 
@@ -408,6 +432,7 @@ void SCoPEx::Init(int argc, char **argv) {
   // dBodySetMass (balloonID,&m);  // Set mass parameter to the body
   // dBodySetPosition (balloonID,0,1, balloonRadius + tetherLength + 1); // Set a position
   dBodySetPosition (balloonID,0,0, balloonAltitude); // Set a position
+  ductVerticalOffset = balloonMaxHeight*(1-ductHeightRatio);
 
   calculateBuoyancy();
 
