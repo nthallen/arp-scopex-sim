@@ -17,6 +17,7 @@ class SCoPEx {
     static void graphicsStart();
     static void graphicsCommand(int c);
   private:
+    void clamp(dReal &value, dReal abs_limit);
     void calculateBuoyancy();
     void LogBody(dBodyID b);
     void LogJoint(dJointFeedback *j);
@@ -70,7 +71,10 @@ class SCoPEx {
     // direction, which is commanded, specifies the desired velocity direction
     // The setpoint for gondola angle control
     dReal gondolaAngleSetpoint;
+    dReal gondolaAngleIntegral;
+    dReal gondolaAngleIntegralLimit;
     dReal velocityAngleCorrLimit;
+    dReal velocityAngleIntegral;
     dReal prevAngleError;
     dVector3 prevPayloadPos;
 
@@ -89,7 +93,9 @@ class SCoPEx {
     dReal directionIncrement; // degrees
     dReal PGain;
     dReal DGain;
+    dReal IGain;
     dReal VPGain;
+    dReal VIGain;
     dReal stepSize; // time step in seconds
     dReal gravity;
     static constexpr dReal R_He = 2077; // J/(kg K) specific gas constant for Helium

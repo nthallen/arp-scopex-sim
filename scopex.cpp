@@ -49,8 +49,10 @@ SCoPEx::SCoPEx() {
   direction = 90.; // +Y [-180, 180]
   directionIncrement = 5; // degrees
   PGain = 0.4/90;
-  VPGain = 0;
+  IGain = 0;
   DGain = 0;
+  VPGain = 0;
+  VIGain = 0;
   stepSize = 0.05; // seconds
   gondolaVelocityAngle = 90;
   gondolaAngle = 90;
@@ -64,6 +66,9 @@ SCoPEx::SCoPEx() {
   cmdfile = 0;
   nextCmdTime = 0;
   velocityAngleCorrLimit = 45; //*< degrees
+  velocityAngleIntegral = 0;
+  gondolaAngleIntegral = 0;
+  gondolaAngleIntegralLimit = 0.25;
 }
 
 SCoPEx::~SCoPEx() {}
@@ -184,6 +189,14 @@ void SCoPEx::commandStep() {
   }
 }
 
+void SCoPEx::clamp(dReal &value, dReal abs_limit) {
+  if (value > abs_limit) {
+    value = abs_limit;
+  } else if (value < -abs_limit) {
+    value = -abs_limit;
+  }
+}
+
 void SCoPEx::Step() {
   if (tcount > 0)
     dWorldStep(world,stepSize);
@@ -207,7 +220,8 @@ void SCoPEx::Step() {
   const dReal *newPayloadPos = dBodyGetPosition(payloadID);
   dVector3 boxVelocity;
   gondolaSpeed = 0;
-  for (int i = 0; i < 3; ++i) {
+  // Let's just use horizontal velocity at the moment
+  for (int i = 0; i < 2; ++i) {
     boxVelocity[i] = (newPayloadPos[i]-prevPayloadPos[i])/stepSize;
     gondolaSpeed += boxVelocity[i]*boxVelocity[i];
     prevPayloadPos[i] = newPayloadPos[i];
@@ -217,7 +231,7 @@ void SCoPEx::Step() {
   const dReal *rot = dBodyGetRotation(payloadID);
   gondolaAngle = atan2(rot[1*4+1],rot[0*4+1])*180/pi;
 
-  gondolaVelocityAngle = gondolaSpeed > 0.001 ?
+  gondolaVelocityAngle = gondolaSpeed > 0.1 ?
     atan2(boxVelocity[1],boxVelocity[0]) * 180/pi :
     gondolaAngle;
   
@@ -228,18 +242,20 @@ void SCoPEx::Step() {
   // loop, which feeds back on velocity angle. All three gains
   // should be positive.
   dReal velocityAngleError = angleDiff(gondolaVelocityAngle, direction);
-  dReal velocityAngleCorr = velocityAngleError * VPGain;
-  if (velocityAngleCorr > velocityAngleCorrLimit)
-    velocityAngleCorr = velocityAngleCorrLimit;
-  else if (velocityAngleCorr < -velocityAngleCorrLimit)
-    velocityAngleCorr = -velocityAngleCorrLimit;
+  velocityAngleIntegral += velocityAngleError*VIGain;
+  clamp(velocityAngleIntegral, velocityAngleCorrLimit);
+  dReal velocityAngleCorr = velocityAngleError * VPGain + velocityAngleIntegral;
+  clamp(velocityAngleCorr, velocityAngleCorrLimit);
   
   gondolaAngleSetpoint = direction - velocityAngleCorr;
   dReal angleError = angleDiff(gondolaVelocityAngle, gondolaAngleSetpoint);
   dReal errorChange = angleError - prevAngleError;
   prevAngleError = angleError;
+  gondolaAngleIntegral += angleError * IGain;
+  clamp(gondolaAngleIntegral, gondolaAngleIntegralLimit);
   
-  dReal dThrust = angleError * PGain + errorChange * DGain;
+  dReal dThrust = angleError * PGain + errorChange * DGain
+          + gondolaAngleIntegral;
   
   if (dThrust > 1) dThrust = 1;
   else if (dThrust < -1) dThrust = -1;
@@ -297,18 +313,19 @@ function [B, Di] = GetBodyData(D, col)
   %[tether,Di] = GetBodyData(D,Di);
   %[balloon,Di] = GetBodyData(D,Di);
   %[TGjoint,Di] = GetJointData(D,Di);
-  [Thrust,Di] = GetSimVar(D,'Thrust',Di);
-  [Gangles,Di] = GetSimVar(D,'GondolaAngles',Di);
+  [Thrust,Di] = GetSimVar(D,'Thrust',Di,2);
+  [Gangles,Di] = GetSimVar(D,'GondolaAngles',Di,5);
  */
 void SCoPEx::Log() {
+  if (ofp == 0) return;
   fprintf(ofp, "%7.2lf", tcount*stepSize);
   LogBody(payloadID);
   // LogBody(tetherID);
   // LogBody(balloonID);
   // LogJoint(&tetherPayloadFB);
   fprintf(ofp,",%12.8lf,%12.8lf", thrust_left, thrust_right);
-  fprintf(ofp,"%12.8lf,%12.8lf,%12.8lf", gondolaAngle,
-          gondolaVelocityAngle, gondolaSpeed);
+  fprintf(ofp,",%12.8lf,%12.8lf,%12.8lf,%12.8lf,%12.8lf", gondolaAngle,
+          gondolaVelocityAngle, gondolaSpeed, direction, gondolaAngleSetpoint);
   fprintf(ofp, "\n");
 }
 
@@ -372,7 +389,7 @@ void SCoPEx::calculateBuoyancy() {
   dMass m;                 // mass parameter
   dMassSetSphericalShell(&m,balloonMass,balloonRadius);
   dBodySetMass (balloonID,&m);
-  if (tcount%1200 == 0) {
+  if (tcount%12000 == 0) {
     dReal Fg = (balloonMass+payloadMass+tetherMass)*gravity;
     printf("%5d %4.1f %5.1f %7.1f %7.1f %7.1f %7.2f %6.2f\n",
       tcount/1200,
@@ -407,12 +424,17 @@ void SCoPEx::Init(int argc, char **argv) {
     cmdfile->addVariable(&thrust, "Thrust");
     cmdfile->addVariable(&direction, "Direction");
     cmdfile->addVariable(&PGain, "PGain");
-    cmdfile->addVariable(&VPGain, "VPGain");
+    cmdfile->addVariable(&IGain, "IGain");
     cmdfile->addVariable(&DGain, "DGain");
+    cmdfile->addVariable(&VPGain, "VPGain");
+    cmdfile->addVariable(&VIGain, "VIGain");
     cmdfile->addVariable(&initialAltitude, "initialAltitude");
     cmdfile->addVariable(&ductCdischarge, "ductCdischarge");
     cmdfile->addVariable(&ductArea, "ductArea");
     cmdfile->addVariable(&ductHeightRatio, "ductHeightRatio");
+    cmdfile->addVariable(&velocityAngleCorrLimit, "velocityAngleCorrLimit");
+    cmdfile->addVariable(&gondolaAngleIntegralLimit,
+                            "gondolaAngleIntegralLimit");
   }
   commandStep();
   dInitODE();              // Initialize ODE

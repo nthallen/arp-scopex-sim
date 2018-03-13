@@ -1,13 +1,19 @@
 # Comment
-0 Set Thrust 3
+0 Set initialAltitude 20400
+0 Set ductArea 0.002
+0 Set ductCdischarge 0.6
+0 Set ductHeightRatio -0.05
+0 Set Thrust 0
 0 Set PGain  0.00018
-0 Set DGain  0.6
-0 Set VPGain  0.2
+0 Set DGain  1.5
+0 Set VPGain  0.4
+0 Set VIGain  0.00002
+5 Set Thrust 3
 600 Adjust Direction -45
-600 Adjust Direction -45
-600 Adjust Direction -45
+1200 Adjust Direction -45
+1200 Adjust Direction -45
 #600 Adjust Direction -45
 #600 Adjust Direction -45
 #600 Adjust Direction -45
 #600 Adjust Direction -45
-600 Quit
+1200 Quit
