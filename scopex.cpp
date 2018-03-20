@@ -16,14 +16,15 @@ SCoPEx Model;
 SCoPEx::SCoPEx() {
   Pressure = 50; // hPa Derived using model_atmos
   Temperature = 212; // K Derived using model_atmos
+  HeliumTemperatureOffset = 8;
   // R = 8.314; // Pa m^3 mol-1 K-1
   // air_molar_mass = 28.97; // g/mol
   // rho_air = air_molar_mass*Pressure*0.1/(R*Temperature); // Kg/m^3
   // dRinv = (1/R_He - 1/R_air); // kg K/J
   balloonCd = 0.4;
-  balloonMass = 477.0; // kg
+  balloonMass = 94.4; // kg
   balloonRadius = 0; // Derived
-  balloonMaxVolume = 12996; // m^3 (from spreadsheet)
+  balloonMaxVolume = 8839.1; // m^3 (from spreadsheet)
   // formulas from Palumbo dissertation
   balloonMaxRadius = 1.383 * pow(balloonMaxVolume, 1./3) / 2;
   balloonMaxHeight = 0.748 * 2 * balloonMaxRadius; // m
@@ -35,7 +36,7 @@ SCoPEx::SCoPEx() {
   initialAltitude = 0; // m
   // balloonAltitude = 0.0; // m
   // balloonArea = pi * balloonRadius * balloonRadius; // m^2 Derived
-  payloadMass = 444.0; // Kg (reduced by tetherMass)
+  payloadMass = 590.0; // Kg (reduced by tetherMass)
   payloadSize[0] = 1; // m
   payloadSize[1] = 1;
   payloadSize[2] = 1;
@@ -242,25 +243,27 @@ void SCoPEx::Step() {
   // loop, which feeds back on velocity angle. All three gains
   // should be positive.
   dReal velocityAngleError = angleDiff(gondolaVelocityAngle, direction);
-  velocityAngleIntegral += velocityAngleError*VIGain;
-  clamp(velocityAngleIntegral, velocityAngleCorrLimit);
-  dReal velocityAngleCorr = velocityAngleError * VPGain + velocityAngleIntegral;
-  clamp(velocityAngleCorr, velocityAngleCorrLimit);
+  // velocityAngleIntegral += velocityAngleError*VIGain;
+  // clamp(velocityAngleIntegral, velocityAngleCorrLimit);
+  // dReal velocityAngleCorr = velocityAngleError * VPGain + velocityAngleIntegral;
+  // clamp(velocityAngleCorr, velocityAngleCorrLimit);
   
-  gondolaAngleSetpoint = direction - velocityAngleCorr;
-  dReal angleError = angleDiff(gondolaVelocityAngle, gondolaAngleSetpoint);
+  // gondolaAngleSetpoint = direction - velocityAngleCorr;
+  // dReal angleError = angleDiff(gondolaVelocityAngle, gondolaAngleSetpoint);
+  gondolaAngleSetpoint = direction;
+  dReal angleError = velocityAngleError;
   dReal errorChange = angleError - prevAngleError;
   prevAngleError = angleError;
   gondolaAngleIntegral += angleError * IGain;
   clamp(gondolaAngleIntegral, gondolaAngleIntegralLimit);
   
-  dReal dThrust = angleError * PGain + errorChange * DGain
-          + gondolaAngleIntegral;
+  dReal dThrust_a = angleError * PGain + errorChange * DGain
+          + gondolaAngleIntegral + dThrust;
   
-  if (dThrust > 1) dThrust = 1;
-  else if (dThrust < -1) dThrust = -1;
-  thrust_left = thrust * (1+dThrust) / 2;
-  thrust_right = thrust * (1-dThrust) / 2;
+  if (dThrust_a > 1) dThrust_a = 1;
+  else if (dThrust_a < -1) dThrust_a = -1;
+  thrust_left = thrust * (1+dThrust_a) / 2;
+  thrust_right = thrust * (1-dThrust_a) / 2;
   
   // printf("Thrust: %12.8lf %12.8lf\n", thrust_left, thrust_right);
   dBodyAddRelForceAtRelPos(payloadID, 0, thrust_left, 0,
@@ -310,7 +313,7 @@ function [B, Di] = GetBodyData(D, col)
   T = D(:,1);
   Di = 2;
   [gondola,Di] = GetBodyData(D,Di);
-  %[tether,Di] = GetBodyData(D,Di);
+  [tether,Di] = GetBodyData(D,Di);
   %[balloon,Di] = GetBodyData(D,Di);
   %[TGjoint,Di] = GetJointData(D,Di);
   [Thrust,Di] = GetSimVar(D,'Thrust',Di,2);
@@ -320,7 +323,7 @@ void SCoPEx::Log() {
   if (ofp == 0) return;
   fprintf(ofp, "%7.2lf", tcount*stepSize);
   LogBody(payloadID);
-  // LogBody(tetherID);
+  LogBody(tetherID);
   // LogBody(balloonID);
   // LogJoint(&tetherPayloadFB);
   fprintf(ofp,",%12.8lf,%12.8lf", thrust_left, thrust_right);
@@ -369,7 +372,8 @@ void SCoPEx::calculateBuoyancy() {
   // Balloon Volume
   HeliumMass -= ductDischargeRate * stepSize;
   model_atmos::get_PT(alt_km, Pressure, Temperature);
-  dReal rho_he = Pressure*100/(R_He * Temperature);
+  dReal rho_he = Pressure*100/
+        (R_He * (Temperature+HeliumTemperatureOffset));
   dReal balloonVolume = HeliumMass / rho_he;
   dReal Poffset = 0.; // Pa
   if (balloonVolume > balloonMaxVolume) {
@@ -389,13 +393,13 @@ void SCoPEx::calculateBuoyancy() {
   dMass m;                 // mass parameter
   dMassSetSphericalShell(&m,balloonMass,balloonRadius);
   dBodySetMass (balloonID,&m);
-  if (tcount%12000 == 0) {
-    dReal Fg = (balloonMass+payloadMass+tetherMass)*gravity;
-    printf("%5d %4.1f %5.1f %7.1f %7.1f %7.1f %7.2f %6.2f\n",
-      tcount/1200,
-      alt_km, HeliumMass, balloonVolume, F, Fg, Pressure, Temperature);
-    if (alt_km < 0) exit(0);
-  }
+  // if (tcount%12000 == 0) {
+    // dReal Fg = (balloonMass+payloadMass+tetherMass)*gravity;
+    // printf("%5d %4.1f %5.1f %7.1f %7.1f %7.1f %7.2f %6.2f\n",
+      // tcount/1200,
+      // alt_km, HeliumMass, balloonVolume, F, Fg, Pressure, Temperature);
+    // if (alt_km < 0) exit(0);
+  // }
 }
 
 void SCoPEx::Init(int argc, char **argv) {
@@ -435,6 +439,7 @@ void SCoPEx::Init(int argc, char **argv) {
     cmdfile->addVariable(&velocityAngleCorrLimit, "velocityAngleCorrLimit");
     cmdfile->addVariable(&gondolaAngleIntegralLimit,
                             "gondolaAngleIntegralLimit");
+    cmdfile->addVariable(&dThrust, "dThrust");
   }
   commandStep();
   dInitODE();              // Initialize ODE

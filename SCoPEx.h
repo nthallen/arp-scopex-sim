@@ -30,6 +30,7 @@ class SCoPEx {
     double nextCmdTime;
     double Pressure; // hPa
     double Temperature; // K
+    double HeliumTemperatureOffset; // K
     dBodyID balloonID;
     dReal balloonCd; // function of balloon size, altitude
     dReal balloonMass; // Kg
@@ -88,6 +89,7 @@ class SCoPEx {
     dJointFeedback tetherPayloadFB;
     
     dReal thrust;
+    dReal dThrust;
     dReal thrustIncrement;
     dReal direction; // +Y [-180, 180]
     dReal directionIncrement; // degrees

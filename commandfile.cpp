@@ -49,33 +49,38 @@ double commandFile::eval() {
   if (ifp == 0) return -1;
   if (lineNumber > 0) {
     if (strcasecmp("quit",command) == 0) return (-1.);
-    std::list<variableDef>::const_iterator ivar;
-    for (ivar = vars.begin(); ivar != vars.end(); ++ivar) {
-      if (strncasecmp(ivar->name, varname, IBUFLEN) == 0) {
-        if (strcasecmp("set",command) == 0) {
-          *(ivar->ptr) = commandValue;
-        } else if (strcasecmp("adjust", command) == 0) {
-          *(ivar->ptr) += commandValue;
-        } else {
-          nl_error(3, "%s:%d: Invalid command '%s'",
-            cmdfilename, lineNumber, command);
+    if (strcasecmp("noop",command) != 0) {
+      // Must be 'Set' or 'Adjust'
+      std::list<variableDef>::const_iterator ivar;
+      for (ivar = vars.begin(); ivar != vars.end(); ++ivar) {
+        if (strncasecmp(ivar->name, varname, IBUFLEN) == 0) {
+          if (strcasecmp("set",command) == 0) {
+            *(ivar->ptr) = commandValue;
+          } else if (strcasecmp("adjust", command) == 0) {
+            *(ivar->ptr) += commandValue;
+          } else {
+            nl_error(3, "%s:%d: Invalid command '%s'",
+              cmdfilename, lineNumber, command);
+          }
+          break;
         }
-        break;
       }
-    }
-    if (ivar == vars.end()) {
-      nl_error(2, "%s:%d: Unknown variable: '%s'",
-        cmdfilename, lineNumber, command);
+      if (ivar == vars.end()) {
+        nl_error(2, "%s:%d: Unknown variable: '%s'",
+          cmdfilename, lineNumber, command);
+      }
     }
   }
   for (;;) {
     double Tdelta;
     ++lineNumber;
     if (fgets(ibuf, IBUFLEN, ifp) == 0) return -1;
-    if (ibuf[0] != '#') {
+    if (ibuf[0] != '#' && ibuf[0] != '\n') {
       int nconv = sscanf(ibuf, "%lf %s %s %lf", &Tdelta,
         &command, &varname, &commandValue);
-      if (nconv == 2 && strcasecmp("Quit", command) == 0) {
+      if (nconv == 2 &&
+          (strcasecmp("Quit", command) == 0 ||
+           strcasecmp("Noop", command) == 0)) {
         varname[0] = '\0';
       } else if (nconv < 4) {
         nl_error(3, "%s:%d: Syntax error '%s'", cmdfilename, lineNumber, ibuf);

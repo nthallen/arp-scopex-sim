@@ -3,7 +3,7 @@ cd C:\Users\nort.ARP\Documents\Exp\SCoPEx\work
 clear all
 close all
 %%
-PGain = 1.4e-4;
+PGain = 4e-4;
 DGain = 1;
 IGain = 0;
 VIGain = 0;
@@ -11,10 +11,10 @@ GAIL = 0.2;
 VACL = 0;
 
 gainiter = 'I';
-exponent=7;
+exponent=9;
 
 scale = 10^(-exponent);
-for pi = [1 10 100] %[1 2 5]
+for pi = [1 2 5]
   if gainiter == 'P'
     PGain = pi*scale;
   elseif gainiter == 'D'
@@ -35,8 +35,8 @@ end
 % fprintf(1,'Done\n');
 %%
 system('/cygwin64/bin/bash ./doit');
-%%
-scopex_anal('scopex.log', 'Trial');
+%
+Data = scopex_anal('scopex.log', 'Trial');
 
 %% This stuff has moved to scopex_anal()
 filename = 'scopex.log';

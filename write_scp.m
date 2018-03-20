@@ -1,6 +1,6 @@
 function write_scp(varargin)
-  ifd = fopen('Intercept_base.scp', 'r');
-  ofd = fopen('Intercept.scp', 'w');
+  ifd = fopen('Tune_base.scp', 'r');
+  ofd = fopen('Tune.scp', 'w');
   for i=1:3:length(varargin)
     name = varargin{i};
     value = varargin{i+1};

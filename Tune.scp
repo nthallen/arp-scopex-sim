@@ -1,0 +1,28 @@
+0 Set PGain 4.0e-04
+0 Set IGain 5.0e-09
+0 Set DGain 1.0e+00
+0 Set VIGain 0.000000
+0 Set gondolaAngleIntegralLimit 0.200
+0 Set velocityAngleCorrLimit 0
+# All of these commented parameters are set
+# by scopex.m
+#0 Set PGain  0.00005
+#0 Set IGain  0.01
+#0 Set DGain  0.25
+#0 Set VIGain  0.00000
+#0 Set gondolaAngleIntegralLimit 0.25
+#0 Set velocityAngleCorrLimit 45
+
+0 Set initialAltitude 20400
+0 Set ductArea 0.002
+0 Set ductCdischarge 0.6
+0 Set ductHeightRatio -0.05
+0 Set Thrust 0
+0 Set VPGain  2
+
+# 90 is enough thrust to get to 2.5 m/s
+5 Set Thrust 90
+
+# 110 is enough to get up to speed before applying our impulse:
+110 Adjust Direction -90
+2000 Quit
