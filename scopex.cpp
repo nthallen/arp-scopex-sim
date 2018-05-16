@@ -154,10 +154,6 @@ void SCoPEx::dBodyAddDrag(dBodyID ID, dReal Cd, dReal Area) {
     double rho_air = Pressure*100/(R_air*Temperature);
     double Fds = 0.5*rho_air*Vs2*Cd*Area;
     dBodyAddForce(ID, -V[0]*Fds/Vs, -V[1]*Fds/Vs, -V[2]*Fds/Vs);
-    // if (tcount%1200 == 0 && ID == balloonID) {
-      // printf("%5d %5.3lf %6.3lf %4.2f %7.1f %7.1lf\n",
-        // tcount/1200, rho_air, Vs2, Cd, Area, Fds);
-    // }
   }
 }
 
@@ -329,6 +325,8 @@ void SCoPEx::Log() {
   fprintf(ofp,",%12.8lf,%12.8lf", thrust_left, thrust_right);
   fprintf(ofp,",%12.8lf,%12.8lf,%12.8lf,%12.8lf,%12.8lf", gondolaAngle,
           gondolaVelocityAngle, gondolaSpeed, direction, gondolaAngleSetpoint);
+  fprintf(ofp,",%12.8lf,%12.8lf,%12.8lf", HeliumMass, balloonVolume,
+          HeliumPressureOffset);
   fprintf(ofp, "\n");
 }
 
@@ -374,18 +372,24 @@ void SCoPEx::calculateBuoyancy() {
   model_atmos::get_PT(alt_km, Pressure, Temperature);
   dReal rho_he = Pressure*100/
         (R_He * (Temperature+HeliumTemperatureOffset));
-  dReal balloonVolume = HeliumMass / rho_he;
+  balloonVolume = HeliumMass / rho_he;
   dReal Poffset = 0.; // Pa
   if (balloonVolume > balloonMaxVolume) {
     balloonVolume = balloonMaxVolume;
     rho_he = HeliumMass/balloonVolume;
     Poffset = rho_he * R_He * Temperature - Pressure*100;
   }
-  balloonRadius = 1.383 * pow(balloonVolume,1./3) / 2;
-  balloonHeight = 0.748 * 2 * balloonRadius;
+  // These values are estimated based on Rodger Farley's
+  // initial balloon estimates. These differe from values
+  // in his AIAA conference paper.
+  balloonRadius = 1.3148 * pow(balloonVolume,1./3) / 2;
+  balloonHeight = 0.9462 * 2 * balloonRadius;
   dReal ductHeight = balloonHeight - ductVerticalOffset;
-  dReal dP = gravity*(Pressure*100/Temperature)*dRinv*ductHeight + Poffset;
-  ductDischargeRate = (dP > 0) ? ductArea * ductCdischarge * sqrt(2 * dP * rho_he) : 0;
+  dReal dP = gravity*(Pressure*100/Temperature)*dRinv*ductHeight
+              + Poffset;
+  ductDischargeRate = (dP > 0)
+    ? ductArea * ductCdischarge * sqrt(2 * dP * rho_he)
+    : 0;
   dReal AirMass = balloonVolume * Pressure * 100 / (R_air * Temperature);
   dReal F = gravity * (HeliumMass - AirMass);
   dBodyAddForce(balloonID, 0, 0, F);
@@ -393,13 +397,7 @@ void SCoPEx::calculateBuoyancy() {
   dMass m;                 // mass parameter
   dMassSetSphericalShell(&m,balloonMass,balloonRadius);
   dBodySetMass (balloonID,&m);
-  // if (tcount%12000 == 0) {
-    // dReal Fg = (balloonMass+payloadMass+tetherMass)*gravity;
-    // printf("%5d %4.1f %5.1f %7.1f %7.1f %7.1f %7.2f %6.2f\n",
-      // tcount/1200,
-      // alt_km, HeliumMass, balloonVolume, F, Fg, Pressure, Temperature);
-    // if (alt_km < 0) exit(0);
-  // }
+  HeliumPressureOffset = Poffset/100; // hPa
 }
 
 void SCoPEx::Init(int argc, char **argv) {
