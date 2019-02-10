@@ -52,3 +52,6 @@ VI = T >= xl(1) & T <= xl(2);
 minTVI = min(T(VI));
 ZVImean = mean(Z(VI));
 plot(hh, T(VI) - minTVI, Z(VI)-ZVImean);
+%%
+Data = scopex_load('scopex.log');
+PlotSimVar(Data.HeVol);

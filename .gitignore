@@ -4,3 +4,5 @@
 *.log
 *.asv
 *.png
+*.mat
+*.csv

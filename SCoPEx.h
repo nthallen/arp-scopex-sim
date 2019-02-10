@@ -31,11 +31,13 @@ class SCoPEx {
     double Pressure; // hPa
     double Temperature; // K
     double HeliumTemperatureOffset; // K
+    double HeliumPressureOffset; // hPa
     dBodyID balloonID;
     dReal balloonCd; // function of balloon size, altitude
     dReal balloonMass; // Kg
     dReal balloonRadius; // m: varies with altitude, used for vertical drag
     dReal balloonHeight; // m: calculated from volume
+    dReal balloonVolume; // m^3: calculated
     dReal balloonMaxVolume; // m^3: from spreadsheet
     dReal balloonMaxRadius; // m: calculated from balloonMaxVolume
     dReal balloonMaxHeight; // m: used to determine tether length

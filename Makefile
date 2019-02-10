@@ -23,8 +23,5 @@ Sdebug : Sdebug.o
 	$(CXXLINK) Sdebug.o
 Sdebug.o : Sdebug.cpp
 
-model_atmos : model_atmos.o
-	$(CXXLD) $(CXXFLAGS) $(MS_LDFLAGS) -o model_atmos model_atmos.o
-
 clean :
 	rm -f *.o Sdebug scopex
