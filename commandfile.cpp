@@ -1,7 +1,7 @@
 /* commandfile.cpp */
 #include <strings.h>
 #include "commandfile.h"
-#include "nortlib.h"
+#include "nl.h"
 #include "nl_assert.h"
 
 variableDef::variableDef(dReal* ptr, const char *name) {
@@ -13,7 +13,7 @@ commandFile::commandFile(const char *filename) {
   nl_assert(filename != 0);
   ifp = fopen(filename, "r");
   if (ifp == 0) {
-    nl_error(3, "Unable to open command file %s", filename);
+    msg(3, "Unable to open command file %s", filename);
   }
   ibuf[0] = '\0';
   lineNumber = 0;
@@ -59,14 +59,14 @@ double commandFile::eval() {
           } else if (strcasecmp("adjust", command) == 0) {
             *(ivar->ptr) += commandValue;
           } else {
-            nl_error(3, "%s:%d: Invalid command '%s'",
+            msg(3, "%s:%d: Invalid command '%s'",
               cmdfilename, lineNumber, command);
           }
           break;
         }
       }
       if (ivar == vars.end()) {
-        nl_error(2, "%s:%d: Unknown variable: '%s'",
+        msg(2, "%s:%d: Unknown variable: '%s'",
           cmdfilename, lineNumber, command);
       }
     }
@@ -83,10 +83,10 @@ double commandFile::eval() {
            strcasecmp("Noop", command) == 0)) {
         varname[0] = '\0';
       } else if (nconv < 4) {
-        nl_error(3, "%s:%d: Syntax error '%s'", cmdfilename, lineNumber, ibuf);
+        msg(3, "%s:%d: Syntax error '%s'", cmdfilename, lineNumber, ibuf);
       }
       if (Tdelta < 0) {
-        nl_error(3, "%s:%d: Invalid negative time delta", cmdfilename, lineNumber);
+        msg(3, "%s:%d: Invalid negative time delta", cmdfilename, lineNumber);
       }
       return Tdelta;
     }

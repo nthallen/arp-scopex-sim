@@ -7,8 +7,10 @@
 #include "SCoPEx.h"
 #include "ode/ode.h"
 #include "ode/mass.h"
+#if USE_DRAWSTUFF
 #include "drawstuff/drawstuff.h"
-#include "nortlib.h"
+#endif
+#include "nl.h"
 #include "model_atmos.h"
 
 SCoPEx Model;
@@ -88,6 +90,8 @@ void dMassSetSphericalShell (dMass *m, dReal total_mass, dReal radius) {
 # endif
 }
 
+#if USE_DRAWSTUFF
+
 /**
  * Static function for calling from drawstuff
  */
@@ -133,6 +137,7 @@ void SCoPEx::graphicsCommand(int c) {
   printf("Thrust = %.1lf Direction = %.1lf\n",
     (double)Model.thrust, (double)Model.direction);
 }
+#endif
 
 void SCoPEx::printdR3(const dReal *d) {
   printdRN(d,3);
@@ -330,6 +335,7 @@ void SCoPEx::Log() {
   fprintf(ofp, "\n");
 }
 
+#if USE_DRAWSTUFF
 void SCoPEx::Draw() {
   const dReal *pos1, *R1, *pos2, *R2, *pos3, *R3;
   // draw a sphere
@@ -357,6 +363,8 @@ static void graphicsStep(int pause) {
   Model.Log();
   Model.Draw();
 }
+
+#endif
 
 void SCoPEx::calculateBuoyancy() {
   // First determine gravity
@@ -415,7 +423,7 @@ void SCoPEx::Init(int argc, char **argv) {
         opt_commandfile = optarg;
         break;
       case '?':
-        nl_error(3, "Unrecognized Option -%c", optopt);
+        msg(3, "Unrecognized Option -%c", optopt);
     }
   }
   if (opt_logfile) {
@@ -502,6 +510,7 @@ void SCoPEx::Close() {
 }
 
 void SCoPEx::Loop() {
+  #if USE_DRAWSTUFF
   if (opt_graphics) {
     // Simulation loop
     // set drawstuff
@@ -514,12 +523,15 @@ void SCoPEx::Loop() {
     fn.path_to_textures = "/home/nort/Exp/SCoPEx/ode/drawstuff/textures";
     dsSimulationLoop (0,0,960,480,&fn);
   } else {
+  #endif
     run = true;
     while (run) {
       Step();
       Log();
     }
+  #if USE_DRAWSTUFF
   }
+  #endif
 }
 
 int main (int argc, char **argv) {

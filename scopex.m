@@ -1,5 +1,5 @@
 %%
-cd C:\Users\nort.ARP\Documents\Exp\SCoPEx\work
+cd C:\Users\nort\Documents\Documents\Exp\SCoPEx\scopex-sim
 clear all
 close all
 %%

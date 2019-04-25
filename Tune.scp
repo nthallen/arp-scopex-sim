@@ -1,5 +1,5 @@
 0 Set PGain 4.0e-04
-0 Set IGain 5.0e-09
+0 Set IGain 1.0e-09
 0 Set DGain 1.0e+00
 0 Set VIGain 0.000000
 0 Set gondolaAngleIntegralLimit 0.200
