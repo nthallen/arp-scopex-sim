@@ -1,4 +1,12 @@
 function Data = scopex_anal(filename, titles, imagename)
+% Data = scopex_anal(filename, titles[, imagename])
+% Reads data from the specified filename and generates
+% a series of analysis plots.
+% titles is a string that is used to give context to
+% the various plots.
+% imagename, if specified, indicates that PNG files should
+% be generated incorporating the imagename string in the
+% filename.
   DataI = scopex_load(filename);
   gondola = DataI.gondola;
   tether = DataI.tether;
@@ -58,7 +66,7 @@ function Data = scopex_anal(filename, titles, imagename)
   hold off;
   title(sprintf('Payload Position: %s', titles));
   xlabel('meters'); ylabel('meters');
-  legend('Payload Direction','Position','location','southeast');
+  legend({'Payload Direction','Position'},'Location','southeast');
   set(gcf,'name',sprintf('Pos:%s', titles));
   shg;
   if nargin >= 3

@@ -17,7 +17,7 @@ CXXLINK = $(CXXLD) $(CXXFLAGS) $(LDFLAGS)
 all : scopex
 
 scopex : scopex.o commandfile.o model_atmos.o
-	$(CXXLD) $(CXXFLAGS) scopex.o commandfile.o model_atmos.o $(LDFLAGS)
+	$(CXXLD) -o scopex $(CXXFLAGS) scopex.o commandfile.o model_atmos.o $(LDFLAGS)
 scopex.o : scopex.cpp
 commandfile.o : commandfile.cpp
 

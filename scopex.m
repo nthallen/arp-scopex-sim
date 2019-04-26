@@ -35,7 +35,7 @@ end
 % fprintf(1,'Done\n');
 %%
 system('/cygwin64/bin/bash ./doit');
-%
+%%
 Data = scopex_anal('scopex.log', 'Trial');
 
 %% This stuff has moved to scopex_anal()
@@ -91,3 +91,19 @@ title('Payload Position');
 xlabel('meters'); ylabel('meters');
 legend('Position','Payload Direction','location','south');
 shg;
+%%
+Data = scopex_load('scopex.log');
+RotM = Data.gondola.rotM;
+azi = atan2(RotM(:,3),RotM(:,7))*180/pi;
+azi(azi>179) = azi(azi>179)-360;
+zen = acos(RotM(:,11))*180/pi;
+figure;
+ax = [ nsubplot(2, 1, 1), nsubplot(2,1,2)];
+plot(ax(1), Data.gondola.T, azi);
+set(ax(1),'xticklabel', [],'YAxisLocation','Right');
+ylabel(ax(1),'Azimuth deg');
+plot(ax(2), Data.gondola.T, zen);
+ylabel(ax(2),'Zenith deg');
+linkaxes(ax,'x');
+%%
+scopex_anal('scopex.log','Feed Forward');
