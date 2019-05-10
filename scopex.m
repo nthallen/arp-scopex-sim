@@ -92,6 +92,7 @@ xlabel('meters'); ylabel('meters');
 legend('Position','Payload Direction','location','south');
 shg;
 %%
+% This is analysis for wind sensor
 Data = scopex_load('scopex.log');
 RotM = Data.gondola.rotM;
 azi = atan2(RotM(:,3),RotM(:,7))*180/pi;
@@ -105,5 +106,21 @@ ylabel(ax(1),'Azimuth deg');
 plot(ax(2), Data.gondola.T, zen);
 ylabel(ax(2),'Zenith deg');
 linkaxes(ax,'x');
+%%
+% Use with data from previous section to calculate position of
+% wind sensor tether point
+% This assumes gondola central structure of 1m cube with the center
+% of mass at the center. The forward direction on the gondola is
+% positive Y, and the wind sensor will be placed at the bottom center
+% of the leading face.
+wind_tether_offset = [0; 0.5; -0.5];
+% Apply the rotation matrix to the offset to get the rotational
+% component of the position.
+wind_tether_rotated = zeros(size(RotM,1),3);
+for i = 1:size(RotM,1)
+    M = reshape(RotM(i,:),4,3)';
+    wind_tether_rotated(i,:) = (M(:,1:3)*wind_tether_offset)';
+end
+wind_tether_position = Data.gondola.Pos + wind_tether_rotated;
 %%
 scopex_anal('scopex.log','Feed Forward');
