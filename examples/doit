@@ -1,0 +1,8 @@
+#! /bin/bash
+export PATH=/usr/local/bin:/usr/bin:$PATH
+./scopex-sim -f SingleStep.scp -lscopex.log
+#./scopex-sim -f Intercept2.scp -lscopex.log
+# 
+#./scopex-sim -f Straight.scp -lscopex.log
+# Check buoyancy:
+#./scopex-sim -f Climb.scp -lscopex.log

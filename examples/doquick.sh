@@ -1,3 +1,3 @@
 #! /bin/bash
 PATH=/usr/local/bin:/usr/bin:$PATH
-./scopex -f Quick.scp -lquick.log
+./scopex-sim -f Quick.scp -lquick.log

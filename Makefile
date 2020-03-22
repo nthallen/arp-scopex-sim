@@ -18,12 +18,12 @@ all : scopex
 
 scopex : scopex.o commandfile.o model_atmos.o
 	$(CXXLD) -o scopex $(CXXFLAGS) scopex.o commandfile.o model_atmos.o $(LDFLAGS)
-scopex.o : scopex.cpp
-commandfile.o : commandfile.cpp
+scopex.o : scopex.cc
+commandfile.o : commandfile.cc
 
 Sdebug : Sdebug.o
 	$(CXXLINK) Sdebug.o
-Sdebug.o : Sdebug.cpp
+Sdebug.o : Sdebug.cc
 
 clean :
 	rm -f *.o Sdebug scopex

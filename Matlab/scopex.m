@@ -122,5 +122,8 @@ for i = 1:size(RotM,1)
     wind_tether_rotated(i,:) = (M(:,1:3)*wind_tether_offset)';
 end
 wind_tether_position = Data.gondola.Pos + wind_tether_rotated;
+gondola_position = Data.gondola.Pos;
+T = Data.gondola.T;
+save wind_tether_position.mat wind_tether_position wind_tether_rotated gondola_position T
 %%
 scopex_anal('scopex.log','Feed Forward');
