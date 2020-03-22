@@ -36,9 +36,9 @@ Currently support commands include:
 
   - Noop
     - does nothing
-  - Set <parameter> <value>
+  - Set \<parameter> \<value>
     - sets the specified parameter to the given value
-  - Adjust <parameter> <value>
+  - Adjust \<parameter> \<value>
     - adds the value to the specified paramter
   - Quit
     - terminates the simulation
