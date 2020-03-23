@@ -156,7 +156,7 @@ void SCoPEx::dBodyAddDrag(dBodyID ID, dReal Cd, dReal Area) {
   double Vs2 = V[0]*V[0] + V[1]*V[1] + V[2]*V[2];
   if (Vs2 > 1e-6) {
     double Vs = sqrt(Vs2);
-    double rho_air = Pressure*100/(R_air*Temperature);
+    double rho_air = Pressure*100/(R_air*Temperature); // Kg/m^3
     double Fds = 0.5*rho_air*Vs2*Cd*Area;
     dBodyAddForce(ID, -V[0]*Fds/Vs, -V[1]*Fds/Vs, -V[2]*Fds/Vs);
   }
