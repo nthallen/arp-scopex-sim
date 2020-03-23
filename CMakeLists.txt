@@ -4,5 +4,5 @@ project(arp-scopex-sim VERSION 1.1.0)
 link_directories(/usr/local/lib)
 add_executable(scopex-sim scopex.cc commandfile.cc model_atmos.cc
   nl_error.c nl_verr.c nldbg.c)
-target_link_libraries(scopex-sim ode GLU GL)
+target_link_libraries(scopex-sim ode)
 install(TARGETS scopex-sim RUNTIME DESTINATION bin)
