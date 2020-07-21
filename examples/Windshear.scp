@@ -13,4 +13,17 @@
 0 Set VPGain  0
 0 Set direction 90
 5 Set Thrust 0
-200 Quit
+5 Set WindshearXBalloon 0
+1000 Noop
+5 Set WindshearXBalloon 0.5
+1000 Noop
+5 Set WindshearXBalloon 1
+1000 Noop
+5 Set WindshearXBalloon 1.5
+1000 Noop
+5 Set WindshearXBalloon 2
+1000 Noop
+5 Set WindshearXBalloon 0
+1000 Noop
+
+
